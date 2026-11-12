@@ -149,7 +149,7 @@ export default function RunView({ id }: { id: number }) {
         </dl>
         <div className="actions">
           <a className="btn quiet" href="#/history">All invoices</a>
-          <a className="btn" href="#/">Run another invoice</a>
+          <a className="btn" href="#/run">Run another invoice</a>
         </div>
       </div>
 

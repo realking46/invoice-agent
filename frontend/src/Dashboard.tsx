@@ -136,7 +136,7 @@ export default function Dashboard() {
       {runs.length === 0 ? (
         <div className="empty">
           <p>No invoices yet. Run one to see it here.</p>
-          <a className="btn primary" href="#/">Run an invoice</a>
+          <a className="btn primary" href="#/run">Run an invoice</a>
         </div>
       ) : (
         <>
