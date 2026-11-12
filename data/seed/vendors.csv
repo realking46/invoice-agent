@@ -1,0 +1,7 @@
+vendor_id,legal_name,aliases,state_code,gstin,pan,address,bank_account,ifsc,status,payment_terms_days
+V001,Shreeji Steel Traders,Shreeji Steel|Shreeji Steels,27,27AAKFS1234L1ZZ,AAKFS1234L,"Gala 7, Bhosari Industrial Area, Pune, Maharashtra 411026",50100234114521,HDFC0001234,approved,30
+V002,Vega Fasteners Pvt Ltd,Vega Fasteners|Vega Fastners,29,29AACCV5678M1ZG,AACCV5678M,"No. 42, Peenya 2nd Stage, Bengaluru, Karnataka 560058",002105017730,ICIC0002211,approved,45
+V003,Orbit Packaging Solutions,Orbit Packaging|Orbit Pack,27,27AAGFO9012P1ZR,AAGFO9012P,"Survey 88, Talawade MIDC, Pune, Maharashtra 411062",38291003318,SBIN0004567,approved,30
+V004,Nilgiri Industrial Supplies,Nilgiri Industrial|Nilgiri Supplies,33,33AAECN3456Q1Z1,AAECN3456Q,"14 Ambattur Industrial Estate, Chennai, Tamil Nadu 600058",917020046604,UTIB0000789,approved,30
+V005,Bharat Electricals & Controls,Bharat Electricals|Bharat Electrical and Controls,07,07AABCB7890R1ZV,AABCB7890R,"B-27 Okhla Industrial Area Phase I, New Delhi 110020",4611002295,KKBK0000456,approved,45
+V006,Apex Traders,Apex Trading Co,27,27AAHFA2468S1ZS,AAHFA2468S,"Shop 3, Market Yard, Pune, Maharashtra 411037",60112009981,BARB0PUNEXX,blocked,30

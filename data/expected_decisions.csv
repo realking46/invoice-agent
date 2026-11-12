@@ -1,0 +1,9 @@
+file,vendor,invoice_no,po,expected_decision,why
+01_happy_clean.pdf,Shreeji Steel Traders,INV-0042,PO-1001,Approve,"Clean text PDF; lines, prices and total match PO-1001 exactly"
+02_happy_tolerance.pdf,Orbit Packaging Solutions,OPS/2026/118,PO-1002,Approve with note,"Extra freight line of 472 incl. tax (+0.66%), within tolerance"
+03_split_po_part1.pdf,Vega Fasteners Pvt Ltd,VF-2611-0087,PO-1004,Approve,Partial delivery: 60 of 100 boxes; within PO
+04_split_po_part2_over.pdf,Vega Fasteners Pvt Ltd,VF-2611-0103,PO-1004,Hold for review,EC1: cumulative 115 of 100 boxes billed; 15 over PO (run after 03)
+05_duplicate_renumbered.pdf,Shreeji Steel Traders,INV 42,PO-1001,Reject,EC2: normalises to same number as INV-0042 (run after 01)
+06_scanned_no_po.pdf,Nilgiri Industrial Supplies,NIS/1123,(inferred) PO-1007,Hold for review,"EC3: image-only scan, no PO, bundled lot; best match PO-1007 by amount + items"
+07_bank_changed.pdf,Bharat Electricals & Controls,BEC/26-27/0311,PO-1005,Hold for review,EC4: bank account differs from vendor master (fraud risk)
+08_missing_fields.pdf,Orbit Packaging Solutions,(missing),PO-1003,Reject,"No invoice number, no grand total; auto-draft vendor request"

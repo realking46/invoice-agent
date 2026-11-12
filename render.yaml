@@ -1,0 +1,20 @@
+# Render Blueprint: New > Blueprint > pick this repo. Uses the Dockerfile.
+# Free plan: sleeps after 15 min idle. Keep it awake with a free uptime ping (see docs/SETUP.md, Step 6).
+services:
+  - type: web
+    name: invoice-agent
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false          # free key from aistudio.google.com
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: EXTRACTOR
+        value: auto
+      - key: APP_PASSWORD
+        sync: false          # optional: share it with the interviewers along with the link

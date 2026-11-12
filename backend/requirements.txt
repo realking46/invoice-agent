@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+pdfplumber
+pymupdf
+pydantic
+sqlmodel
+rapidfuzz
+anthropic
+python-multipart
+reportlab
+pillow
+pytesseract
+pytest
+numpy
+python-dotenv
+google-genai

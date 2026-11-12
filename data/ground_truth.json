@@ -1,0 +1,98 @@
+{
+  "01_happy_clean.pdf": {
+    "vendor_gstin": "27AAKFS1234L1ZZ",
+    "invoice_number": "INV-0042",
+    "invoice_date": "2026-11-03",
+    "po_reference": "PO-1001",
+    "subtotal": 137000,
+    "tax_total": 24660.0,
+    "total": 161660.0,
+    "bank_account": "50100234114521",
+    "ifsc": "HDFC0001234",
+    "line_count": 2
+  },
+  "02_happy_tolerance.pdf": {
+    "vendor_gstin": "27AAGFO9012P1ZR",
+    "invoice_number": "OPS/2026/118",
+    "invoice_date": "2026-11-05",
+    "po_reference": "PO-1002",
+    "subtotal": 61000,
+    "tax_total": 10980.0,
+    "total": 71980.0,
+    "bank_account": "38291003318",
+    "ifsc": "SBIN0004567",
+    "line_count": 3
+  },
+  "03_split_po_part1.pdf": {
+    "vendor_gstin": "29AACCV5678M1ZG",
+    "invoice_number": "VF-2611-0087",
+    "invoice_date": "2026-11-06",
+    "po_reference": "PO-1004",
+    "subtotal": 69000,
+    "tax_total": 12420.0,
+    "total": 81420.0,
+    "bank_account": "002105017730",
+    "ifsc": "ICIC0002211",
+    "line_count": 1
+  },
+  "04_split_po_part2_over.pdf": {
+    "vendor_gstin": "29AACCV5678M1ZG",
+    "invoice_number": "VF-2611-0103",
+    "invoice_date": "2026-11-10",
+    "po_reference": "PO-1004",
+    "subtotal": 63250,
+    "tax_total": 11385.0,
+    "total": 74635.0,
+    "bank_account": "002105017730",
+    "ifsc": "ICIC0002211",
+    "line_count": 1
+  },
+  "05_duplicate_renumbered.pdf": {
+    "vendor_gstin": "27AAKFS1234L1ZZ",
+    "invoice_number": "INV 42",
+    "invoice_date": "2026-11-05",
+    "po_reference": "PO-1001",
+    "subtotal": 137000,
+    "tax_total": 24660.0,
+    "total": 161660.0,
+    "bank_account": "50100234114521",
+    "ifsc": "HDFC0001234",
+    "line_count": 2
+  },
+  "06_scanned_no_po.pdf": {
+    "vendor_gstin": "33AAECN3456Q1Z1",
+    "invoice_number": "NIS/1123",
+    "invoice_date": "2026-11-07",
+    "po_reference": null,
+    "subtotal": 48000,
+    "tax_total": 8640.0,
+    "total": 56640.0,
+    "bank_account": "917020046604",
+    "ifsc": "UTIB0000789",
+    "line_count": 1
+  },
+  "07_bank_changed.pdf": {
+    "vendor_gstin": "07AABCB7890R1ZV",
+    "invoice_number": "BEC/26-27/0311",
+    "invoice_date": "2026-11-08",
+    "po_reference": "PO-1005",
+    "subtotal": 116000,
+    "tax_total": 20880.0,
+    "total": 136880.0,
+    "bank_account": "50200017738890",
+    "ifsc": "YESB0000312",
+    "line_count": 2
+  },
+  "08_missing_fields.pdf": {
+    "vendor_gstin": "27AAGFO9012P1ZR",
+    "invoice_number": null,
+    "invoice_date": "2026-11-09",
+    "po_reference": "PO-1003",
+    "subtotal": 43500,
+    "tax_total": 7830.0,
+    "total": null,
+    "bank_account": "38291003318",
+    "ifsc": "SBIN0004567",
+    "line_count": 1
+  }
+}

@@ -1,0 +1,15 @@
+po_number,line_no,item_code,description,qty,uom,unit_price,tax_rate
+PO-1001,1,MS-SHT-2MM,Mild steel sheet 2 mm (1250x2500),50,Nos,2400.00,18
+PO-1001,2,MS-ROD-12,MS round bar 12 mm,200,Kg,85.00,18
+PO-1002,1,CB-BOX-L5,"Corrugated box large, 5-ply",1000,Nos,42.00,18
+PO-1002,2,STR-FILM-23,Stretch film roll 23 micron,60,Rolls,310.00,18
+PO-1003,1,BW-ROLL-1M,Bubble wrap roll 1 m x 100 m,30,Rolls,1450.00,18
+PO-1004,1,HB-M10-SS,Hex bolt M10x40 SS304 (box of 100),100,Box,1150.00,18
+PO-1005,1,MCB-32A-4P,MCB 32A 4-pole C-curve,40,Nos,1850.00,18
+PO-1005,2,CTR-25A,Power contactor 25A AC3,20,Nos,2100.00,18
+PO-1006,1,AL-SHT-1.5,Aluminium sheet 1.5 mm (1220x2440),30,Nos,3200.00,18
+PO-1007,1,SG-NITRILE,Safety gloves nitrile (pair),400,Pairs,45.00,18
+PO-1007,2,SG-GOGGLE-AF,Safety goggles anti-fog,150,Nos,120.00,18
+PO-1007,3,EP-BOX-200,Ear plugs foam (box of 200),40,Box,300.00,18
+PO-1008,1,CD-4IN,Cutting disc 4 inch,500,Nos,38.00,18
+PO-1008,2,GW-7IN,Grinding wheel 7 inch,60,Nos,450.00,18
