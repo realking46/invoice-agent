@@ -53,12 +53,14 @@ export default function Dashboard() {
     { key: "reject", label: "Rejected", n: done.filter((r) => r.decision === "Reject").length },
   ];
   const byVendor = useMemo(() => {
-    const m = new Map<string, { vendor: string; n: number; value: number; ok: number; hold: number; rej: number }>();
+    const m = new Map<string, { vendor: string; n: number; value: number; other: Record<string, number>; ok: number; hold: number; rej: number }>();
     for (const r of done) {
       const k = r.vendor ?? "Unknown vendor";
-      const v = m.get(k) ?? { vendor: k, n: 0, value: 0, ok: 0, hold: 0, rej: 0 };
+      const v = m.get(k) ?? { vendor: k, n: 0, value: 0, other: {} as Record<string, number>, ok: 0, hold: 0, rej: 0 };
       v.n += 1;
-      if ((r.currency ?? "INR") === "INR") v.value += r.total ?? 0;
+      const cur: string = r.currency || "INR";
+      if (cur === "INR") v.value += r.total ?? 0;
+      else if (r.total) v.other[cur] = (v.other[cur] ?? 0) + r.total;
       if (r.decision === "Hold for review") v.hold += 1;
       else if (r.decision === "Reject") v.rej += 1;
       else v.ok += 1;
@@ -78,10 +80,23 @@ export default function Dashboard() {
       {stats && stats.invoices > 0 && (
         <dl className="ledger">
           <div><dt>Invoices processed</dt><dd>{stats.invoices}</dd></div>
-          <div><dt>Total value (INR)</dt><dd>{inr(stats.value)}</dd></div>
-          <div><dt>Decided without a person</dt><dd>{stats.auto_decided_pct}%</dd></div>
+          <div>
+            <dt>Total value (INR)</dt><dd>{inr(stats.value)}</dd>
+            {stats.other_currencies && Object.keys(stats.other_currencies).length > 0 && (
+              <p className="other-cur" title="Not converted to INR: no exchange rates are applied">
+                + {Object.entries(stats.other_currencies as Record<string, number>).map(([c, x]) => money(x, c)).join(", ")} in other currencies
+              </p>
+            )}
+          </div>
+          <div>
+            <dt>Decided without a person</dt><dd>{stats.auto_decided_pct}%</dd>
+            <span className="meter" aria-hidden="true"><span style={{ width: `${stats.auto_decided_pct}%` }} /></span>
+          </div>
           <div className={stats.waiting_review ? "attention" : ""}>
             <dt>Waiting for review</dt><dd>{stats.waiting_review}</dd>
+            {stats.waiting_review > 0 && (
+              <button className="linkbtn small" onClick={() => setFilter("review")}>Show them</button>
+            )}
           </div>
           <div><dt>Average processing time</dt><dd>{(stats.avg_processing_ms / 1000).toFixed(2)} s</dd></div>
         </dl>
@@ -89,7 +104,7 @@ export default function Dashboard() {
 
       {done.length > 0 && (
         <div className="insights">
-          <section aria-label="Decisions">
+          <section className="panel" aria-label="Decisions">
             <h2>Decisions</h2>
             <div className="stack" role="img"
               aria-label={segs.filter((s) => s.n).map((s) => `${s.label}: ${s.n}`).join(", ")}>
@@ -109,7 +124,7 @@ export default function Dashboard() {
               ))}
             </ul>
           </section>
-          <section aria-label="By vendor">
+          <section className="panel" aria-label="By vendor">
             <h2>By vendor</h2>
             <table className="vendors">
               <thead>
@@ -120,7 +135,10 @@ export default function Dashboard() {
                   <tr key={v.vendor}>
                     <td>{v.vendor}</td>
                     <td className="num">{v.n}</td>
-                    <td className="num">{inr(v.value)}</td>
+                    <td className="num">
+                      {(v.value > 0 || Object.keys(v.other).length === 0) && <div>{inr(v.value)}</div>}
+                      {Object.entries(v.other).map(([c, x]) => <div key={c}>{money(x, c)}</div>)}
+                    </td>
                     <td className="muted">
                       {[v.ok && `${v.ok} approved`, v.hold && `${v.hold} waiting`, v.rej && `${v.rej} rejected`]
                         .filter(Boolean).join(", ")}
@@ -174,13 +192,14 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {shown.map((r) => (
-                  <tr key={r.id} onClick={() => (window.location.hash = `#/runs/${r.id}`)}>
+                  <tr key={r.id} className={`tone-${r.status === "error" ? "reject" : r.decision ? DECISION_TONE[r.decision] : "pending"}`}
+                    onClick={() => (window.location.hash = `#/runs/${r.id}`)}>
                     <td><a href={`#/runs/${r.id}`} onClick={(e) => e.stopPropagation()}>#{r.id}</a></td>
                     <td className="muted">{timeAgo(r.started_at)}</td>
-                    <td>{r.vendor ?? <span className="muted">Unknown</span>}</td>
+                    <td className="vendor-cell">{r.vendor ?? <span className="muted">Unknown</span>}</td>
                     <td>{r.invoice_no ?? <span className="muted">none</span>}</td>
                     <td>{r.po_number ? <>{r.po_number}{r.po_inferred && <span className="muted"> (suggested)</span>}</> : <span className="muted">none</span>}</td>
-                    <td className="num">{money(r.total, r.currency)}</td>
+                    <td className="num amt">{money(r.total, r.currency)}</td>
                     <td><Badge run={r} /></td>
                     <td className="why">{r.reviewed_by ? `${r.review_note} (${r.reviewed_by})` : r.reason_summary}</td>
                   </tr>

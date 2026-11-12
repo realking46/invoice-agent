@@ -131,6 +131,16 @@ def list_runs():
         return _run_rows(s)
 
 
+def _other_currency_totals(rows) -> dict:
+    """Non-INR invoices are summed per currency and shown beside the INR total, never converted."""
+    out: dict = {}
+    for r in rows:
+        cur = r["currency"] or "INR"
+        if cur != "INR" and r["total"]:
+            out[cur] = round(out.get(cur, 0) + r["total"], 2)
+    return out
+
+
 @app.get("/api/stats")
 def stats():
     with Session(engine) as s:
@@ -141,7 +151,8 @@ def stats():
     auto = [r for r in rows if r["system_decision"] in ("Approve", "Approve with note")]
     return {
         "invoices": len(rows),
-        "value": round(sum(r["total"] or 0 for r in rows if r["currency"] == "INR"), 2),  # INR only: no FX
+        "value": round(sum(r["total"] or 0 for r in rows if (r["currency"] or "INR") == "INR"), 2),  # INR only: no FX
+        "other_currencies": _other_currency_totals(rows),
         "by_decision": by,
         "waiting_review": sum(1 for r in rows if r["decision"] == "Hold for review"),
         "reviewed": sum(1 for r in rows if r["reviewed_by"]),

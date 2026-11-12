@@ -27,15 +27,22 @@ PDF ─► Receive ─► Check type ─► Read ─► Validate ─► Vendor &
 | **EC3** Scanned, no PO, items bundled | Hold | Infers PO-1007 (0.89) over a decoy PO-1008 (0.46) and asks a person to confirm |
 | **EC4** Bank account changed | Hold | One fraud signal outweighs every green check |
 | No invoice number or total | Reject | Drafts the request to the vendor |
+| Foreign or hard-to-read invoice (non-INR, under half the key fields read) | Hold | Unfamiliar input goes to a person instead of being rejected |
 
 ## Try it
 
-The live link is in the submission email. Locally:
+The live link is in the submission email. The site has four parts: **Home** (what it does, the hard cases, one-click
+sample runs), **Try it** (upload a PDF or pick a sample, plus the review queue), the **live run view** (each stage as it
+runs, with the invoice and the fields that drove the decision highlighted) and **History** (totals, decisions, filters,
+audit trail). **Rule settings** changes tolerances live.
+
+Locally:
 
 ```bash
 pip install -r backend/requirements.txt        # plus tesseract-ocr for the local reader
 cp .env.example .env                           # add a free GEMINI_API_KEY; without it the local reader is used
-cd backend && uvicorn app.main:app             # http://127.0.0.1:8000
+cd frontend && npm install && npm run build    # builds the UI into frontend/dist (not committed)
+cd ../backend && uvicorn app.main:app          # http://127.0.0.1:8000
 ```
 
 Run the samples **top to bottom after "Reset demo data"**: some depend on earlier ones, just as in real life.
@@ -51,7 +58,7 @@ Full setup: [docs/SETUP.md](docs/SETUP.md). Deploy steps: [docs/DEPLOY.md](docs/
 | Decisions | 12 plain Python rules (`backend/app/rules.py`), each returns status + reason + evidence | Deterministic, unit-tested, explainable |
 | Matching | rapidfuzz for vendor names and item descriptions | Vendors and items are never spelled the same twice |
 | API | FastAPI; Server-Sent Events stream each stage to the UI | Live run view without WebSockets |
-| UI | React + Vite | Live run view, history dashboard, reviewer approve/reject, rule settings |
+| UI | React + Vite, built inside the Docker image | Landing page, live run view, history dashboard, reviewer approve/reject, rule settings |
 | Storage | SQLite (vendors, POs, runs, steps, audit log) | Zero setup for a demo |
 
 Notable decisions:
@@ -70,7 +77,7 @@ stops at the decision; it never pays. Vendors and POs are seeded from `data/seed
 ## Tests
 
 ```bash
-cd backend && pytest -q                       # all 8 samples in demo order + review + helper tests (16)
+cd backend && pytest -q                       # 8 samples in demo order, review, highlights, foreign invoice, provider fallback (31)
 python scripts/extract_all.py                 # extraction accuracy vs data/ground_truth.json
 python scripts/generate_test_data.py          # rebuild every sample PDF, seed CSV and expected result
 ```
@@ -83,7 +90,7 @@ Local reader: 70/72 fields (97 %) correct across the samples. Both misses are on
 - Email intake (forward-to address) and a vendor portal for missing details
 - Postgres, a worker queue and per-PO locks for volume; batch API calls
 - Learn tolerances and confidence floors from reviewer overrides
-- Multi-currency and non-GST tax regimes
+- Multi-currency and non-GST tax regimes (today a non-INR invoice is held for a person)
 
 ## Repo
 

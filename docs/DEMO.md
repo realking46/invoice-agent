@@ -8,7 +8,7 @@ For the 5-minute video and the live interview. Rehearse it three times with a ti
 - [ ] Top bar says **Reading with Gemini**. If it says local, the key is missing: fix it, or demo in local mode and say so
 - [ ] Run all 8 samples once to warm the cache (saves free-tier quota during the demo), then Reset
 - [ ] **Rule settings**: price tolerance 2, cap 500, confidence 0.8, demo pacing 450
-- [ ] **Reset demo data** on the home page
+- [ ] **Reset demo data** on the **Try it** page
 - [ ] Close other tabs and notifications. Keep this runbook and the roadmap doc open on a second screen
 
 ## Run order (live interview)
@@ -32,7 +32,7 @@ Samples must run top to bottom after a reset: 04 depends on 03, and 05 depends o
 
 | Time | Do | Say |
 |---|---|---|
-| 0:00–0:30 | Home page | The problem; what the process does; "LLM reads, rules decide" |
+| 0:00–0:30 | Home page (hero), then **Try it** | The problem; what the process does; "LLM reads, rules decide". Don't linger on the landing page |
 | 0:30–1:45 | Run **Clean invoice** | Walk the trail as it fills; open the extraction evidence |
 | 1:45–2:45 | Run **Partial delivery**, then **Second partial delivery** | The cumulative quantity table |
 | 2:45–3:45 | Run **New bank account**, then approve it as reviewer | Fraud signal, review note, audit trail |

@@ -94,8 +94,9 @@ export default function Home() {
           </button>
         </div>
         <div className="samples">
-          {samples.map((s) => (
+          {samples.map((s, i) => (
             <div className="sample" key={s.file}>
+              <span className="sample-n" aria-hidden="true">{i + 1}</span>
               <div>
                 <div className="t">{s.title}</div>
                 <div className="d">{s.description}</div>
