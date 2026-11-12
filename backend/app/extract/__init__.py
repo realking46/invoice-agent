@@ -19,14 +19,16 @@ def gstin_valid(g: str | None) -> bool:
     return GST_CHARS[(36 - total % 36) % 36] == g[14]
 
 
-def read_document(path, route: str, text: str, mode: str) -> tuple[InvoiceExtraction, dict, str]:
+def read_document(path, route: str, text: str, mode: str, progress=lambda m: None) -> tuple[InvoiceExtraction, dict, str]:
     """Returns (extraction, meta, text_used)."""
     if mode == "llm":
         from . import llm
-        ext, meta = llm.extract(path, route, text)
+        ext, meta = llm.extract(path, route, text, progress)
         return ext, meta, text
     if route == "text":
+        progress("Reading the PDF text with the local parser")
         return local_parser.parse(text, base_conf=0.95), {}, text
+    progress("Cleaning up the scan and running OCR (local reader)")
     # scanned: OCR every page; prior confidence = tesseract's own word confidence, capped
     texts, confs, angles = [], [], []
     for img in render_pages(path, dpi=config.OCR_DPI):
@@ -65,12 +67,40 @@ def calibrate(ext: InvoiceExtraction) -> list[dict]:
     return checks
 
 
+def _read_local_cached(path, info, progress):
+    """Local reading of a scan is slow on a small server (OCR); an identical file gives an identical result,
+    so keep it. Text PDFs are fast and are not cached."""
+    if info["route"] != "scan":
+        return read_document(path, info["route"], info["text"], "local", progress)
+    config.CACHE_DIR.mkdir(exist_ok=True)
+    f = config.CACHE_DIR / f"local_{_file_hash(path)}.json"
+    if f.exists():
+        progress("Using the earlier OCR reading of this identical scan")
+        import json as _json
+        saved = _json.loads(f.read_text())
+        return InvoiceExtraction.model_validate(saved["data"]), {"cached_ocr": True}, saved["text"]
+    ext, meta, text = read_document(path, info["route"], info["text"], "local", progress)
+    import json as _json
+    f.write_text(_json.dumps({"data": ext.model_dump(), "text": text}))
+    return ext, meta, text
+
+
 def _file_hash(path) -> str:
     import hashlib
     return hashlib.sha256(open(path, "rb").read()).hexdigest()
 
 
-def extract(path) -> ExtractionResult:
+# When the AI reader has just failed with a temporary error (busy, rate-limited, slow), later invoices skip it
+# for a few minutes instead of each waiting through the same retries.
+_AI_DOWN = {"until": 0.0, "reason": ""}
+AI_COOLDOWN_S = 180
+
+
+def extract(path, progress=lambda m: None) -> ExtractionResult:
+    import time as _t
+
+    from .llm import _is_temporary
+
     info = classify(path)
     mode = config.extractor_mode()
     fallback, cached = None, False
@@ -79,19 +109,30 @@ def extract(path) -> ExtractionResult:
         config.CACHE_DIR.mkdir(exist_ok=True)
         cache_file = config.CACHE_DIR / f"{config.provider()}_{config.model_name()}_{_file_hash(path)}.json"
     if cache_file and cache_file.exists():
+        progress("Using the AI's earlier reading of this identical file")
         ext, meta, text = InvoiceExtraction.model_validate_json(cache_file.read_text()), {"cached": True}, info["text"]
         cached = True
+    elif mode == "llm" and _t.time() < _AI_DOWN["until"] and config.EXTRACTOR != "llm":
+        # The AI reader failed with a temporary error moments ago: don't make this invoice wait through it again.
+        fallback = (f"Skipped: the AI reader was unavailable less than {AI_COOLDOWN_S // 60} min ago "
+                    f"({_AI_DOWN['reason'][:120]})")
+        progress("The AI reader was busy a moment ago; reading locally instead of waiting again")
+        mode = "local"
     else:
         try:
-            ext, meta, text = read_document(path, info["route"], info["text"], mode)
+            ext, meta, text = read_document(path, info["route"], info["text"], mode, progress)
             if cache_file:
                 cache_file.write_text(ext.model_dump_json())
         except Exception as err:  # LLM unreachable, rate-limited, or returned junk twice: keep the process running
             if mode != "llm":
                 raise
             fallback = f"{type(err).__name__}: {str(err)[:400]}"
+            if _is_temporary(err):
+                _AI_DOWN.update(until=_t.time() + AI_COOLDOWN_S, reason=fallback)
+            progress("AI reader unavailable; falling back to the local reader")
             mode = "local"
-            ext, meta, text = read_document(path, info["route"], info["text"], "local")
+    if mode == "local" and not cached:
+        ext, meta, text = _read_local_cached(path, info, progress)
     for f in KEY_FIELDS + ["line_items"]:
         ext.confidence.setdefault(f, 0.0 if getattr(ext, f, None) in (None, [], "") else 0.5)
     checks = calibrate(ext)

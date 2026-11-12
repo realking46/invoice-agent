@@ -67,8 +67,14 @@ def ocr_page(img: Image.Image) -> tuple[str, float, float]:
     bw = g.point(lambda p: 255 if p > 150 else 0)
     angle = _skew_angle(bw)
     bw = bw.rotate(angle, resample=Image.BICUBIC, fillcolor=255)
-    text = pytesseract.image_to_string(bw, config="--psm 6")
     data = pytesseract.image_to_data(bw, config="--psm 6", output_type=pytesseract.Output.DICT)
+    # Rebuild the text from the same pass (one OCR run instead of two: about half the time on a small server)
+    lines: dict = {}
+    for i, word in enumerate(data["text"]):
+        if word.strip():
+            key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
+            lines.setdefault(key, []).append(word)
+    text = "\n".join(" ".join(ws) for _, ws in sorted(lines.items()))
     confs = [float(c) for c in data["conf"] if str(c) not in ("-1", "-1.0")]
     mean = (sum(confs) / len(confs) / 100) if confs else 0.0
     return text, round(mean, 3), angle

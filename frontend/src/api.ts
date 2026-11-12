@@ -7,6 +7,8 @@ export interface Stage {
   summary?: string;
   duration_ms?: number;
   detail?: any;
+  progress?: string[];     // live lines while a slow step works ("Gemini is busy; retrying…")
+  startedAt?: number;      // ms timestamp, for the elapsed-time counter
 }
 
 export interface Sample {

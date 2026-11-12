@@ -386,3 +386,14 @@ input[type="search"] { width: 240px; }
   .insights { grid-template-columns: 1fr; gap: 24px; }
   .techtoggle { margin-left: 0; }
 }
+
+/* ---------------------------------------------------------------- live progress inside a running step */
+.step.running .step-sum { color: var(--ledger); }
+.step.running .step-sum::after { content: ""; display: inline-block; width: 1.2em; text-align: left;
+  animation: dots 1.2s steps(4, end) infinite; vertical-align: bottom; overflow: hidden; white-space: nowrap; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+.progress-log { list-style: none; margin: 2px 0 6px; padding: 0 0 0 0; font-size: 13px; color: var(--ink-3); }
+.progress-log li { position: relative; padding-left: 14px; }
+.progress-log li::before { content: ""; position: absolute; left: 2px; top: 0.6em; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--rule); }
+@media (prefers-reduced-motion: reduce) { .step.running .step-sum::after { animation: none; content: "…"; } }

@@ -32,7 +32,19 @@ function ExtractEvidence({ d }: { d: any }) {
         {d.mode === "llm" ? `${d.provider === "claude" ? "Claude" : "Gemini"}${d.cached ? ", reused for this identical file" : ""}` : "local parser"})
       </h3>
       {d.fallback_reason && (
-        <p className="fallback">The AI reader could not be reached ({d.fallback_reason}), so the local reader was used instead.</p>
+        <p className="fallback">
+          {d.fallback_reason.startsWith("Skipped")
+            ? "The AI reader was busy on an earlier invoice moments ago, so this one went straight to the local reader instead of waiting again."
+            : `The AI reader could not be reached (${d.fallback_reason}), so the local reader was used instead.`}
+        </p>
+      )}
+      {(d.progress?.length ?? 0) > 1 && (
+        <>
+          <h3>What the reader did</h3>
+          <ol className="progress-log done">
+            {d.progress.map((m: string, i: number) => <li key={i}>{m}</li>)}
+          </ol>
+        </>
       )}
       <table className="kv">
         <thead>

@@ -123,3 +123,30 @@ def test_timeout_skips_straight_to_backup_model(monkeypatch):
     ext, meta = llm._gemini(None, "text", "invoice text")
     assert calls == ["main", "backup"]          # no slow retry of the timed-out model
     assert meta["model"] == "backup"
+
+
+def test_busy_ai_is_skipped_for_a_while_and_progress_is_reported(monkeypatch):
+    """After a temporary AI failure, the next invoice goes straight to the local reader (no second wait)."""
+    from app import config
+    from app import extract as ex
+    from app.extract import llm
+
+    calls = []
+
+    def busy(*a, **k):
+        calls.append(1)
+        raise RuntimeError("ServerError: 503 UNAVAILABLE high demand")
+
+    monkeypatch.setattr(config, "extractor_mode", lambda: "llm")
+    monkeypatch.setattr(config, "EXTRACTOR", "auto")
+    monkeypatch.setattr(config, "LLM_CACHE", False)
+    monkeypatch.setattr(llm, "extract", busy)
+    monkeypatch.setitem(ex._AI_DOWN, "until", 0.0)
+    first_log, second_log = [], []
+    r1 = ex.extract(config.SAMPLES_DIR / "01_happy_clean.pdf", progress=first_log.append)
+    r2 = ex.extract(config.SAMPLES_DIR / "03_split_po_part1.pdf", progress=second_log.append)
+    assert r1.mode == r2.mode == "local" and r1.data.total and r2.data.total
+    assert len(calls) == 1                                   # the second invoice did not call the AI again
+    assert r2.fallback_reason.startswith("Skipped")
+    assert any("falling back" in m for m in first_log)
+    assert any("busy a moment ago" in m for m in second_log)

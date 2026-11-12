@@ -82,11 +82,19 @@ def st_classify(ctx):
 
 
 def st_extract(ctx):
-    res = extract(ctx["path"])
+    run_id = ctx["run"].id
+    log: list[str] = []
+
+    def progress(m):
+        log.append(m)
+        bus.publish(run_id, {"type": "stage_progress", "stage": "extract", "message": m})
+
+    res = extract(ctx["path"], progress=progress)
     ctx["extraction"] = res
     d = res.data
     detail = {
         "mode": res.mode, "route": res.route, "fallback_reason": res.fallback_reason, "cached": res.cached,
+        "progress": log,
         "provider": res.provider,
         "fields": {k: getattr(d, k) for k in ["vendor_name", "vendor_gstin", "invoice_number", "invoice_date",
                                               "po_reference", "subtotal", "tax_total", "total", "bank_account",

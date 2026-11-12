@@ -58,12 +58,12 @@ def _images(path) -> list[bytes]:
 
 
 # ---------------------------------------------------------------- Gemini (free tier)
-def _gemini(path, route: str, text: str) -> tuple[InvoiceExtraction, dict]:
+def _gemini(path, route: str, text: str, progress=lambda m: None) -> tuple[InvoiceExtraction, dict]:
     from google import genai
     from google.genai import types
 
     # Scans carry images and take longer; text PDFs should answer in seconds.
-    client = genai.Client(http_options=types.HttpOptions(timeout=45_000 if route == "scan" else 30_000))
+    client = genai.Client(http_options=types.HttpOptions(timeout=30_000 if route == "scan" else 20_000))
     base = dict(system_instruction=SYSTEM + "\n\n" + JSON_SHAPE, response_mime_type="application/json",
                 temperature=0)
     # Reading an invoice is transcription, not reasoning: keep "thinking" low so replies come back fast.
@@ -103,6 +103,12 @@ def _gemini(path, route: str, text: str) -> tuple[InvoiceExtraction, dict]:
         last = None
         for i, model in enumerate(models):
             for attempt in range(2 if i == 0 else 1):
+                if i > 0:
+                    progress(f"Main model busy; trying the backup model {model}")
+                elif attempt == 1:
+                    progress(f"Gemini is busy; retrying {model} once")
+                else:
+                    progress(f"Sending the {'page image' if route == 'scan' else 'invoice text'} to Gemini ({model})")
                 try:
                     out = once(model, extra)
                     used["model"] = model
@@ -112,8 +118,10 @@ def _gemini(path, route: str, text: str) -> tuple[InvoiceExtraction, dict]:
                         raise
                     last = e
                     if _is_timeout(e):
+                        progress(f"{model} did not answer within the time limit")
                         break  # this model is too slow right now: go straight to the backup model
                     if attempt == 0 and i == 0:
+                        progress(f"{model} answered 'busy' (503); waiting 3 s")
                         time.sleep(3)
         raise last
 
@@ -176,11 +184,12 @@ def _claude(path, route: str, text: str) -> tuple[InvoiceExtraction, dict]:
         return InvoiceExtraction.model_validate(raw), {"usage": usage, "retried": True}
 
 
-def extract(path, route: str, text: str) -> tuple[InvoiceExtraction, dict]:
+def extract(path, route: str, text: str, progress=lambda m: None) -> tuple[InvoiceExtraction, dict]:
     p = config.provider()
     if p == "gemini":
-        ext, meta = _gemini(path, route, text)
+        ext, meta = _gemini(path, route, text, progress)
     elif p == "claude":
+        progress(f"Sending the invoice to Claude ({config.LLM_MODEL})")
         ext, meta = _claude(path, route, text)
     else:
         raise RuntimeError("No LLM key configured (set GEMINI_API_KEY or ANTHROPIC_API_KEY)")

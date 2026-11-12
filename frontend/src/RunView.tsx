@@ -46,6 +46,13 @@ export default function RunView({ id }: { id: number }) {
     try { return localStorage.getItem("tech") === "1"; } catch { return false; }
   });
   const userOpened = useRef(false);
+  const [now, setNow] = useState(Date.now());
+  const anyRunning = stages.some((s) => s.status === "running");
+  useEffect(() => {
+    if (!anyRunning) return;
+    const t = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(t);
+  }, [anyRunning]);
 
   useEffect(() => {
     let es: EventSource | null = null;
@@ -82,7 +89,11 @@ export default function RunView({ id }: { id: number }) {
       es.onmessage = (m) => {
         const e = JSON.parse(m.data);
         if (e.type === "stage_started") {
-          setStages((prev) => prev.map((s) => (s.key === e.stage ? { ...s, status: "running" } : s)));
+          setStages((prev) => prev.map((s) => (s.key === e.stage
+            ? { ...s, status: "running", startedAt: Date.now(), progress: [] } : s)));
+        } else if (e.type === "stage_progress") {
+          setStages((prev) => prev.map((s) => (s.key === e.stage
+            ? { ...s, progress: [...(s.progress ?? []), e.message] } : s)));
         } else if (e.type === "stage_finished") {
           setStages((prev) => prev.map((s) => s.key === e.stage
             ? { ...s, status: e.status, summary: e.summary, duration_ms: e.duration_ms, detail: e.detail } : s));
@@ -161,13 +172,24 @@ export default function RunView({ id }: { id: number }) {
                 >
                   <span className="step-name">{s.label}</span>
                   <span className="step-time">
-                    {s.status === "running" ? "working…" : s.duration_ms !== undefined ? `${s.duration_ms} ms` : ""}
+                    {s.status === "running"
+                      ? `${Math.max(0, Math.floor((now - (s.startedAt ?? now)) / 1000))} s`
+                      : s.duration_ms !== undefined
+                        ? s.duration_ms >= 1000 ? `${(s.duration_ms / 1000).toFixed(1)} s` : `${s.duration_ms} ms`
+                        : ""}
                   </span>
                   <span className="step-sum">
                     <span className="sr-only">{STATUS_WORD[s.status]}: </span>
-                    {s.summary ?? (s.status === "waiting" ? "" : "")}
+                    {s.status === "running" && s.progress?.length
+                      ? s.progress[s.progress.length - 1]
+                      : s.status === "running" ? "Working…" : s.summary ?? ""}
                   </span>
                 </button>
+                {s.status === "running" && (s.progress?.length ?? 0) > 1 && (
+                  <ol className="progress-log" aria-label="What this step has tried so far">
+                    {s.progress!.slice(0, -1).map((m, j) => <li key={j}>{m}</li>)}
+                  </ol>
+                )}
                 {open === s.key && s.detail && (
                   <div className="evidence"><Evidence stage={s} tech={tech} /></div>
                 )}
