@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { api, Sample } from "./api";
+import { api, inr, Sample } from "./api";
+import { Badge } from "./Dashboard";
 
 export default function Home() {
   const [samples, setSamples] = useState<Sample[]>([]);
@@ -7,10 +8,13 @@ export default function Home() {
   const [over, setOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetDone, setResetDone] = useState(false);
+  const [runs, setRuns] = useState<any[]>([]);
+  const loadRuns = () => api.runs().then(setRuns).catch(() => {});
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.samples().then(setSamples).catch((e) => setError(`Could not load samples: ${e.message}`));
+    loadRuns();
   }, []);
 
   const go = (p: Promise<{ run_id: number }>, key: string) => {
@@ -30,6 +34,17 @@ export default function Home() {
     go(api.upload(f), "upload");
   };
 
+  const queue = runs.filter((r) => r.decision === "Hold for review");
+  const last: Record<string, any> = {};
+  for (const r of runs) if (!last[r.file_name]) last[r.file_name] = r; // runs come newest first
+
+  const runAll = () => {
+    setBusy("all");
+    setError(null);
+    api.runAll().then(() => (window.location.hash = "#/history"))
+      .catch((e) => setError(e.message)).finally(() => setBusy(null));
+  };
+
   return (
     <div className="home">
       <div>
@@ -39,6 +54,20 @@ export default function Home() {
           what it found, so you can see exactly why an invoice was approved, held or rejected.
         </p>
         {error && <div className="error-banner">{error}</div>}
+
+        {queue.length > 0 && (
+          <section className="queue" aria-label="Invoices waiting for review">
+            <h2>Waiting for your review <span className="count">{queue.length}</span></h2>
+            {queue.map((r) => (
+              <a className="queue-row" key={r.id} href={`#/runs/${r.id}`}>
+                <span className="qv">{r.vendor ?? "Unknown vendor"}</span>
+                <span className="qa">{inr(r.total)}</span>
+                <span className="qr">{r.reason_summary}</span>
+                <span className="qgo">Review</span>
+              </a>
+            ))}
+          </section>
+        )}
 
         <div
           className={`drop ${over ? "over" : ""}`}
@@ -58,7 +87,12 @@ export default function Home() {
           <input ref={input} type="file" accept="application/pdf" hidden onChange={(e) => onFile(e.target.files?.[0])} />
         </div>
 
-        <h2>Prepared samples</h2>
+        <div className="samples-head">
+          <h2>Prepared samples</h2>
+          <button className="btn" disabled={!!busy} onClick={runAll}>
+            {busy === "all" ? "Starting…" : "Reset and run all 8"}
+          </button>
+        </div>
         <div className="samples">
           {samples.map((s) => (
             <div className="sample" key={s.file}>
@@ -67,9 +101,14 @@ export default function Home() {
                 <div className="d">{s.description}</div>
                 <div className="f">{s.file}</div>
               </div>
-              <button className="btn" disabled={!!busy} onClick={() => go(api.runSample(s.file), s.file)}>
-                {busy === s.file ? "Starting…" : "Run"}
-              </button>
+              <div className="sample-act">
+                {last[s.file] && (
+                  <a href={`#/runs/${last[s.file].id}`} title="Open the last run of this sample"><Badge run={last[s.file]} /></a>
+                )}
+                <button className="btn" disabled={!!busy} onClick={() => go(api.runSample(s.file), s.file)}>
+                  {busy === s.file ? "Starting…" : "Run"}
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -91,7 +130,7 @@ export default function Home() {
         <p className="muted" style={{ marginBottom: 8 }}>
           Some samples depend on earlier ones. Run them top to bottom after a reset.
         </p>
-        <button className="btn" onClick={() => api.reset().then(() => { setResetDone(true); setTimeout(() => setResetDone(false), 2000); })}>
+        <button className="btn" onClick={() => api.reset().then(() => { loadRuns(); setResetDone(true); setTimeout(() => setResetDone(false), 2000); })}>
           {resetDone ? "Demo data reset" : "Reset demo data"}
         </button>
       </aside>

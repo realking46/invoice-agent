@@ -45,6 +45,28 @@ export default function Dashboard() {
       (!needle || [r.invoice_no, r.file_name, r.po_number].some((v) => v && String(v).toLowerCase().includes(needle))));
   }, [runs, filter, vendor, q]);
 
+  const done = (runs ?? []).filter((r) => r.status === "done" && r.decision);
+  const segs = [
+    { key: "approve", label: "Approved", n: done.filter((r) => r.decision === "Approve").length },
+    { key: "note", label: "Approved with note", n: done.filter((r) => r.decision === "Approve with note").length },
+    { key: "hold", label: "Waiting for review", n: done.filter((r) => r.decision === "Hold for review").length },
+    { key: "reject", label: "Rejected", n: done.filter((r) => r.decision === "Reject").length },
+  ];
+  const byVendor = useMemo(() => {
+    const m = new Map<string, { vendor: string; n: number; value: number; ok: number; hold: number; rej: number }>();
+    for (const r of done) {
+      const k = r.vendor ?? "Unknown vendor";
+      const v = m.get(k) ?? { vendor: k, n: 0, value: 0, ok: 0, hold: 0, rej: 0 };
+      v.n += 1;
+      v.value += r.total ?? 0;
+      if (r.decision === "Hold for review") v.hold += 1;
+      else if (r.decision === "Reject") v.rej += 1;
+      else v.ok += 1;
+      m.set(k, v);
+    }
+    return Array.from(m.values()).sort((a, b) => b.value - a.value);
+  }, [runs]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (error) return <div className="error-banner">{error}</div>;
   if (!runs) return <p className="muted">Loading history…</p>;
 
@@ -63,6 +85,52 @@ export default function Dashboard() {
           </div>
           <div><dt>Average processing time</dt><dd>{(stats.avg_processing_ms / 1000).toFixed(2)} s</dd></div>
         </dl>
+      )}
+
+      {done.length > 0 && (
+        <div className="insights">
+          <section aria-label="Decisions">
+            <h2>Decisions</h2>
+            <div className="stack" role="img"
+              aria-label={segs.filter((s) => s.n).map((s) => `${s.label}: ${s.n}`).join(", ")}>
+              {segs.filter((s) => s.n > 0).map((s) => (
+                <div key={s.key} className={`seg ${s.key}`} style={{ flexGrow: s.n }}
+                  title={`${s.label}: ${s.n} of ${done.length} (${Math.round((100 * s.n) / done.length)}%)`} />
+              ))}
+            </div>
+            <ul className="legend">
+              {segs.map((s) => (
+                <li key={s.key}>
+                  <i className={`sw ${s.key}`} />
+                  <span>{s.label}</span>
+                  <b>{s.n}</b>
+                  <span className="muted">{done.length ? Math.round((100 * s.n) / done.length) : 0}%</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section aria-label="By vendor">
+            <h2>By vendor</h2>
+            <table className="vendors">
+              <thead>
+                <tr><th>Vendor</th><th className="num">Invoices</th><th className="num">Value</th><th>Outcome</th></tr>
+              </thead>
+              <tbody>
+                {byVendor.map((v) => (
+                  <tr key={v.vendor}>
+                    <td>{v.vendor}</td>
+                    <td className="num">{v.n}</td>
+                    <td className="num">{inr(v.value)}</td>
+                    <td className="muted">
+                      {[v.ok && `${v.ok} approved`, v.hold && `${v.hold} waiting`, v.rej && `${v.rej} rejected`]
+                        .filter(Boolean).join(", ")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </div>
       )}
 
       {runs.length === 0 ? (

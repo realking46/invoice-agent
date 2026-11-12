@@ -62,9 +62,15 @@ def _gemini(path, route: str, text: str) -> tuple[InvoiceExtraction, dict]:
     from google import genai
     from google.genai import types
 
-    client = genai.Client(http_options=types.HttpOptions(timeout=30_000))  # reads GEMINI_API_KEY; 30 s cap per call
-    cfg = types.GenerateContentConfig(system_instruction=SYSTEM + "\n\n" + JSON_SHAPE,
-                                      response_mime_type="application/json", temperature=0)
+    # Scans carry images and take longer; text PDFs should answer in seconds.
+    client = genai.Client(http_options=types.HttpOptions(timeout=45_000 if route == "scan" else 30_000))
+    base = dict(system_instruction=SYSTEM + "\n\n" + JSON_SHAPE, response_mime_type="application/json",
+                temperature=0)
+    # Reading an invoice is transcription, not reasoning: keep "thinking" low so replies come back fast.
+    fast_cfg = types.GenerateContentConfig(**base, thinking_config=types.ThinkingConfig(
+        thinking_level=types.ThinkingLevel.LOW))
+    plain_cfg = types.GenerateContentConfig(**base)
+    cfgs = {"use_fast": True}
     if route == "text":
         parts = [f"Invoice text (from a digital PDF):\n\n{text}"]
     else:
@@ -74,7 +80,17 @@ def _gemini(path, route: str, text: str) -> tuple[InvoiceExtraction, dict]:
     used = {"model": config.GEMINI_MODEL}
 
     def once(model, extra):
-        resp = client.models.generate_content(model=model, contents=parts + ([extra] if extra else []), config=cfg)
+        contents = parts + ([extra] if extra else [])
+        if cfgs["use_fast"]:
+            try:
+                resp = client.models.generate_content(model=model, contents=contents, config=fast_cfg)
+            except Exception as e:  # noqa: BLE001  a model that doesn't accept a thinking level: ask again without it
+                if "thinking" not in str(e).lower() and "400" not in str(e):
+                    raise
+                cfgs["use_fast"] = False
+                resp = client.models.generate_content(model=model, contents=contents, config=plain_cfg)
+        else:
+            resp = client.models.generate_content(model=model, contents=contents, config=plain_cfg)
         u = getattr(resp, "usage_metadata", None)
         usage = {"input_tokens": getattr(u, "prompt_token_count", None),
                  "output_tokens": getattr(u, "candidates_token_count", None)}
@@ -95,6 +111,8 @@ def _gemini(path, route: str, text: str) -> tuple[InvoiceExtraction, dict]:
                     if not _is_temporary(e):
                         raise
                     last = e
+                    if _is_timeout(e):
+                        break  # this model is too slow right now: go straight to the backup model
                     if attempt == 0 and i == 0:
                         time.sleep(3)
         raise last
@@ -109,9 +127,15 @@ def _gemini(path, route: str, text: str) -> tuple[InvoiceExtraction, dict]:
                                                                      "model": used["model"]}
 
 
+def _is_timeout(e: Exception) -> bool:
+    text = f"{type(e).__name__} {e}".lower()
+    return "timeout" in text or "timed out" in text or "deadline" in text
+
+
 def _is_temporary(e: Exception) -> bool:
     text = f"{type(e).__name__} {e}"
-    return any(k in text for k in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "overloaded", "high demand"))
+    return _is_timeout(e) or any(k in text for k in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED",
+                                                     "overloaded", "high demand"))
 
 
 # ---------------------------------------------------------------- Claude (Anthropic API)

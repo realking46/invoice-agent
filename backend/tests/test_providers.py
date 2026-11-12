@@ -90,5 +90,36 @@ def test_non_temporary_error_is_not_retried():
     from app.extract.llm import _is_temporary
     assert _is_temporary(RuntimeError("503 UNAVAILABLE"))
     assert _is_temporary(RuntimeError("429 RESOURCE_EXHAUSTED"))
+    assert _is_temporary(TimeoutError("ReadTimeout: The read operation timed out"))
     assert not _is_temporary(RuntimeError("404 NOT_FOUND model retired"))
     assert not _is_temporary(RuntimeError("400 API key not valid"))
+
+
+def test_timeout_skips_straight_to_backup_model(monkeypatch):
+    import sys
+    import types as pytypes
+
+    from google.genai import types as real_types
+
+    from app import config
+    from app.extract import llm
+
+    calls = []
+
+    class FakeModels:
+        def generate_content(self, model, contents, config):
+            calls.append(model)
+            if model == "main":
+                raise TimeoutError("ReadTimeout: The read operation timed out")
+            return pytypes.SimpleNamespace(text='{"total": 5}', usage_metadata=None)
+
+    fake_genai = pytypes.SimpleNamespace(Client=lambda **kw: pytypes.SimpleNamespace(models=FakeModels()),
+                                         types=real_types)
+    monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
+    monkeypatch.setattr(sys.modules["google"], "genai", fake_genai, raising=False)
+    monkeypatch.setattr(config, "GEMINI_MODEL", "main")
+    monkeypatch.setattr(config, "GEMINI_FALLBACK_MODEL", "backup")
+    monkeypatch.setattr(llm.time, "sleep", lambda s: None)
+    ext, meta = llm._gemini(None, "text", "invoice text")
+    assert calls == ["main", "backup"]          # no slow retry of the timed-out model
+    assert meta["model"] == "backup"

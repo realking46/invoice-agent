@@ -116,7 +116,7 @@ function PoLines({ rows }: { rows: any[] }) {
   );
 }
 
-function RuleEvidence({ d }: { d: any }) {
+function RuleEvidence({ d, tech }: { d: any; tech?: boolean }) {
   const lineRule = (d.rules ?? []).find((r: any) => r.id === "R11" && r.evidence?.lines?.length);
   const cands = (d.rules ?? []).find((r: any) => r.id === "R9" && r.evidence?.candidates)?.evidence.candidates;
   return (
@@ -126,8 +126,8 @@ function RuleEvidence({ d }: { d: any }) {
           <li key={r.id} className={r.status}>
             <span className="mark" />
             <span>
-              <span className="rn">{r.name}</span>{" "}
-              <span className="muted">({r.id})</span>
+              <span className="rn">{r.name}</span>
+              {tech && <span className="muted"> ({r.id})</span>}
               <br />
               {r.reason}
             </span>
@@ -166,7 +166,7 @@ function RuleEvidence({ d }: { d: any }) {
   );
 }
 
-export default function Evidence({ stage }: { stage: Stage }) {
+export default function Evidence({ stage, tech }: { stage: Stage; tech?: boolean }) {
   const d = stage.detail ?? {};
   switch (stage.key) {
     case "ingest":
@@ -218,6 +218,6 @@ export default function Evidence({ stage }: { stage: Stage }) {
       );
     default:
       if (d.traceback) return <pre style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{d.traceback}</pre>;
-      return <RuleEvidence d={d} />;
+      return <RuleEvidence d={d} tech={tech} />;
   }
 }

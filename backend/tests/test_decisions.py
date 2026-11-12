@@ -26,7 +26,7 @@ EXPECTED = list(csv.DictReader(open(config.REPO_DIR / "data" / "expected_decisio
 def results():
     config.SETTINGS["demo_pacing_ms"] = 0
     reset_and_seed()
-    out = {}
+    out, files = {}, []
     for row in EXPECTED:  # file order IS demo order: 03 before 04, 01 before 05
         dest = config.UPLOAD_DIR / f"test_{row['file']}"
         shutil.copy(config.SAMPLES_DIR / row["file"], dest)
@@ -34,8 +34,10 @@ def results():
         execute(run.id)
         with Session(engine) as s:
             out[row["file"]] = s.get(Run, run.id)
-        dest.unlink()
-    return out
+        files.append(dest)
+    yield out
+    for f in files:
+        f.unlink(missing_ok=True)
 
 
 @pytest.mark.parametrize("row", EXPECTED, ids=[r["file"] for r in EXPECTED])
@@ -81,3 +83,13 @@ def test_only_held_invoices_can_be_reviewed(results):
     with pytest.raises(HTTPException) as e:
         review(results["01_happy_clean.pdf"].id, Review(action="reject", note="test"))
     assert e.value.status_code == 409
+
+
+def test_highlights_mark_the_cause_on_the_invoice(results):
+    from app.main import highlights
+    bank = highlights(results["07_bank_changed.pdf"].id)["boxes"]
+    assert len(bank) == 2 and all(0 < b["x"] < 1 and 0 < b["y"] < 1 for b in bank)
+    over = highlights(results["04_split_po_part2_over.pdf"].id)["boxes"]
+    assert [b["rule"] for b in over] == ["R11"]
+    assert highlights(results["01_happy_clean.pdf"].id)["boxes"] == []      # approved: nothing to mark
+    assert highlights(results["06_scanned_no_po.pdf"].id)["boxes"] == []    # scan: no text layer to search

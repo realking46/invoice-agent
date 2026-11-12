@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, decisionLabel, DECISION_TONE, inr, Stage, STAMP_WORD } from "./api";
 import { AuditTrail, ReviewPanel } from "./Review";
 import Evidence from "./Evidence";
+import Why from "./Why";
 
 export const STAGES: { key: string; label: string }[] = [
   { key: "ingest", label: "Receive file" },
@@ -40,6 +41,10 @@ export default function RunView({ id }: { id: number }) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [audit, setAudit] = useState<any[]>([]);
+  const [boxes, setBoxes] = useState<{ x: number; y: number; w: number; h: number; label: string }[]>([]);
+  const [tech, setTech] = useState(() => {
+    try { return localStorage.getItem("tech") === "1"; } catch { return false; }
+  });
   const userOpened = useRef(false);
 
   useEffect(() => {
@@ -49,6 +54,7 @@ export default function RunView({ id }: { id: number }) {
     setDecision(null);
     setAction(null);
     setOpen(null);
+    setBoxes([]);
     userOpened.current = false;
 
     const loadStatic = () =>
@@ -65,6 +71,7 @@ export default function RunView({ id }: { id: number }) {
         if (byKey.decide) setDecision(byKey.decide.detail);
         if (byKey.output) setAction(byKey.output.detail.next_action);
         if (byKey.error) setError(byKey.error.summary);
+        if (byKey.decide) api.highlights(id).then((h) => { if (!cancelled) setBoxes(h.boxes); }).catch(() => {});
       });
 
     api.run(id).then((r) => {
@@ -162,12 +169,18 @@ export default function RunView({ id }: { id: number }) {
                   </span>
                 </button>
                 {open === s.key && s.detail && (
-                  <div className="evidence"><Evidence stage={s} /></div>
+                  <div className="evidence"><Evidence stage={s} tech={tech} /></div>
                 )}
               </li>
             ))}
           </ol>
-
+          <label className="techtoggle">
+            <input type="checkbox" checked={tech} onChange={(e) => {
+              setTech(e.target.checked);
+              try { localStorage.setItem("tech", e.target.checked ? "1" : "0"); } catch {}
+            }} />
+            Show rule IDs and technical details
+          </label>
         </section>
 
         <figure className="doc" style={{ margin: 0 }}>
@@ -182,6 +195,7 @@ export default function RunView({ id }: { id: number }) {
               ) : (
                 <p className="why">{decision.summary}</p>
               )}
+              <Why decision={decision} stages={stages} tech={tech} />
               {action && !reviewed && (
                 <dl className="next">
                   <dt>Next step</dt><dd>{action.action}</dd>
@@ -209,6 +223,10 @@ export default function RunView({ id }: { id: number }) {
           )}
           <div className="sheet">
             <img src={`/api/runs/${id}/page/1.png`} alt={`First page of ${run?.file_name ?? "the invoice"}`} />
+            {decision && boxes.map((b, i) => (
+              <div key={i} className={`hl ${DECISION_TONE[decision.decision]}`} title={b.label}
+                style={{ left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%` }} />
+            ))}
             {decision && tone && (
               <div className={`stamp ${tone}`} aria-hidden="true">
                 {STAMP_WORD[finalDecision!]}
@@ -216,7 +234,11 @@ export default function RunView({ id }: { id: number }) {
             )}
           </div>
           <figcaption>
-            <span>{finished} of {STAGES.length} checks done</span>
+            <span>
+              {boxes.length
+                ? `Marked on the invoice: ${Array.from(new Set(boxes.map((b) => b.label))).join("; ")}`
+                : `${finished} of ${STAGES.length} checks done`}
+            </span>
             <span>{totalMs ? `${(totalMs / 1000).toFixed(2)} s processing` : ""}</span>
           </figcaption>
           {decision && <AuditTrail events={audit} />}

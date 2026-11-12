@@ -58,6 +58,10 @@ export const api = {
   runs: () => fetch("/api/runs").then((r) => json<any[]>(r)),
   reset: () => fetch("/api/reset", { method: "POST" }).then((r) => json<any>(r)),
   stats: () => fetch("/api/stats").then((r) => json<any>(r)),
+  runAll: () => fetch("/api/runs/samples/all", { method: "POST" }).then((r) => json<{ run_ids: number[] }>(r)),
+  highlights: (id: number) =>
+    fetch(`/api/runs/${id}/highlights`).then((r) =>
+      json<{ boxes: { x: number; y: number; w: number; h: number; label: string; rule: string }[] }>(r)),
   review: (id: number, action: "approve" | "reject", note: string, reviewer: string) =>
     fetch(`/api/runs/${id}/review`, {
       method: "POST",

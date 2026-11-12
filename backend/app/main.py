@@ -269,6 +269,102 @@ def reset():
     return {"ok": True}
 
 
+
+@app.post("/api/runs/samples/all")
+def run_all_samples(background: BackgroundTasks):
+    """Demo helper: reset, then process every prepared sample in order (order matters for split POs and duplicates)."""
+    reset()
+    ids = []
+    for src in sorted(config.SAMPLES_DIR.glob("*.pdf")):
+        dest = config.UPLOAD_DIR / f"{uuid.uuid4().hex[:8]}_{src.name}"
+        shutil.copy(src, dest)
+        ids.append(create_run(src.name, dest).id)
+
+    def in_order():
+        for i in ids:
+            execute(i)
+
+    background.add_task(in_order)
+    return {"run_ids": ids}
+
+
+def _indian(x: float) -> str:
+    whole, frac = f"{abs(x):.2f}".split(".")
+    if len(whole) > 3:
+        head, tail = whole[:-3], whole[-3:]
+        parts = []
+        while len(head) > 2:
+            parts.insert(0, head[-2:])
+            head = head[:-2]
+        whole = ",".join(([head] if head else []) + parts + [tail])
+    return f"{whole}.{frac}"
+
+
+@app.get("/api/runs/{run_id}/highlights")
+def highlights(run_id: int):
+    """Where on page 1 the fields behind the decision are printed, as fractions of the page.
+    Works on PDFs with a text layer; a scanned image has nothing to search, so it returns no boxes."""
+    import fitz
+    with Session(engine) as s:
+        run = s.get(Run, run_id)
+        if not run:
+            raise HTTPException(404, "Run not found")
+        steps = s.exec(select(RunStep).where(RunStep.run_id == run_id)).all()
+        inv = s.exec(select(InvoiceRecord).where(InvoiceRecord.run_id == run_id)).first()
+    details = {st.stage: json.loads(st.detail_json) for st in steps}
+    drivers = [d["id"] for d in details.get("decide", {}).get("drivers", [])]
+    rule = {r["id"]: r for d in details.values() for r in d.get("rules", [])}
+    data = json.loads(inv.extracted_json).get("data", {}) if inv else {}
+    boxes = []
+    if not os.path.exists(run.file_path):
+        return {"page": 1, "boxes": boxes}
+    with fitz.open(run.file_path) as doc:
+        page = doc[0]
+        W, H = page.rect.width, page.rect.height
+
+        def find(text):
+            text = (text or "").strip()
+            for probe in (text, text[:28]):
+                if len(probe) >= 3:
+                    hits = page.search_for(probe)
+                    if hits:
+                        return hits[0]
+            return None
+
+        def add(rect, label, rid, full_row=False):
+            if rect is None:
+                return
+            x0, x1 = (rect.x0, W * 0.93) if full_row else (rect.x0, rect.x1)
+            boxes.append({"x": round((x0 - 3) / W, 4), "y": round((rect.y0 - 2) / H, 4),
+                          "w": round((x1 - x0 + 6) / W, 4), "h": round((rect.y1 - rect.y0 + 4) / H, 4),
+                          "label": label, "rule": rid})
+
+        for rid in drivers:
+            ev = rule.get(rid, {}).get("evidence", {})
+            if rid == "R6":
+                add(find(data.get("bank_account")), "Not the bank account on file", rid)
+                add(find(data.get("ifsc")), "Not the IFSC on file", rid)
+            elif rid in ("R7", "R8"):
+                add(find(data.get("invoice_number")), "Matches an earlier invoice", rid)
+            elif rid in ("R10", "R11"):
+                for ln in ev.get("lines", []):
+                    over = ln["qty"] + ln["already_billed"] > ln["po_qty"]
+                    price = abs(ln["unit_price"] - ln["po_unit_price"]) > 0.001
+                    if (rid == "R11" and over) or (rid == "R10" and price):
+                        add(find(ln["invoice_line"]), "More than is left on the PO" if rid == "R11"
+                            else "Price differs from the PO", rid, full_row=True)
+            elif rid == "R12":
+                extras = ev.get("extra_lines", [])
+                for e in extras:
+                    add(find(e), "Not on the purchase order", rid, full_row=True)
+                if not extras and data.get("total") is not None:
+                    add(find(_indian(data["total"])) or find(f"{data['total']:,.2f}"), "Differs from the PO value", rid)
+            elif rid == "R5":
+                add(find(data.get("vendor_name")), "Vendor not approved", rid)
+            elif rid == "R3" and data.get("total") is not None:
+                add(find(_indian(data["total"])), "Figures don't add up", rid)
+    return {"page": 1, "boxes": boxes}
+
 # Serve the built frontend (frontend/dist) at / when it exists
 _dist = config.REPO_DIR / "frontend" / "dist"
 if _dist.exists():
