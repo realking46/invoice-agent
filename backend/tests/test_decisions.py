@@ -1,6 +1,7 @@
 """End-to-end: every test invoice, run in demo order, must get its expected decision.
 Run from backend/:  pytest -q        (uses local extraction unless EXTRACTOR=llm)"""
 import csv
+import sys as _sys
 import os
 import shutil
 import sys
@@ -9,6 +10,7 @@ from pathlib import Path
 import pytest
 
 BACKEND = Path(__file__).resolve().parents[1]
+_sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(BACKEND))
 os.environ.setdefault("DB_PATH", str(BACKEND / "test_invoice_agent.db"))
 os.environ.setdefault("EXTRACTOR", "local")
@@ -93,3 +95,28 @@ def test_highlights_mark_the_cause_on_the_invoice(results):
     assert [b["rule"] for b in over] == ["R11"]
     assert highlights(results["01_happy_clean.pdf"].id)["boxes"] == []      # approved: nothing to mark
     assert highlights(results["06_scanned_no_po.pdf"].id)["boxes"] == []    # scan: no text layer to search
+
+
+def test_unfamiliar_foreign_invoice_is_held_not_rejected(results, tmp_path):
+    """An invoice the reader can barely read must go to a person, not be rejected with an email to 'INVOICE'."""
+    import json
+
+    from sqlmodel import select
+
+    from app.db import RunStep
+    from foreign_invoice import make
+
+    pdf = make(str(tmp_path / "alpenblick_invoice.pdf"))
+    run = create_run("alpenblick_invoice.pdf", pdf)
+    execute(run.id)
+    with Session(engine) as s:
+        r = s.get(Run, run.id)
+        steps = {st.stage: json.loads(st.detail_json) for st in s.exec(select(RunStep).where(RunStep.run_id == run.id))}
+    assert r.decision == "Hold for review", r.reason_summary
+    ids = {d["id"] for d in steps["decide"]["drivers"]}
+    assert {"R0", "R4b", "R5"} <= ids
+    r1 = next(d["reason"] for d in steps["decide"]["drivers"] if d["id"] == "R1")
+    assert r1.startswith("Could not read")                     # unreadable, not "missing": no rejection
+    assert "vendor_email" not in steps["output"]["next_action"]
+    vendor_reason = next(d["reason"] for d in steps["decide"]["drivers"] if d["id"] == "R5")
+    assert "'alpenblick'" in vendor_reason                     # the vendor's name, not the word INVOICE

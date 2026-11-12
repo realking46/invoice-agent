@@ -41,6 +41,8 @@ def to_iso(d: Optional[str]) -> Optional[str]:
     return f"{yy:04d}-{mm:02d}-{dd:02d}"
 
 
+TITLE_WORDS = re.compile(r"\b(TAX\s+INVOICE|INVOICE|BILL|RECEIPT|STATEMENT|ORIGINAL|COPY)\b", re.I)
+
 ITEM_RE = re.compile(
     r"^\W?\d{0,3}\W?\s*(?P<desc>[A-Za-z][^\n]*?)\s+(?P<hsn>\d{4})\s+(?P<qty>[\d,.]+)\s+(?P<uom>[A-Za-z]+)\s+"
     r"(?P<rate>" + NUM + r")\s+(?P<amt>" + NUM + r")$")
@@ -65,10 +67,14 @@ def parse(text: str, base_conf: float) -> InvoiceExtraction:
         else:
             conf[field] = 0.0
 
-    # vendor name: first line, minus the document title
-    if lines:
-        name = re.sub(r"\bTAX INVOICE\b", "", lines[0], flags=re.I).strip(" -:|")
-        put("vendor_name", name or None, lines[0])
+    # vendor name: the first line that is more than a document title ("INVOICE", "TAX INVOICE", "RECEIPT"...)
+    for l in lines[:6]:
+        name = TITLE_WORDS.sub("", l).strip(" -:|#")
+        if len(re.sub(r"[^A-Za-z]", "", name)) >= 3:
+            put("vendor_name", name, l)
+            break
+    else:
+        put("vendor_name", None, None)
 
     # GSTINs: the one that is not ours is the vendor's
     gstins = [(m.group(1), m.group(0)) for m in re.finditer(r"GSTIN[:\s]*([0-9A-Z]{15})", text)]
@@ -82,9 +88,13 @@ def parse(text: str, base_conf: float) -> InvoiceExtraction:
 
     # invoice number: rest of the same line only (never borrow the next line)
     m = re.search(r"Invoice\s*No[:.]?[ \t]*([A-Z0-9][A-Z0-9/\- ]{1,30}?)[ \t]*(?:$|Invoice Date)", text, re.I | re.M)
+    if not m:  # other common labels: "Invoice n° ID 1363255", "Invoice number: 2026-1", "Invoice #A-17"
+        m = re.search(r"Invoice\s*(?:n[°o]\.?|number|#)[: \t]*(?:ID[ \t]*)?([A-Z0-9][A-Z0-9/\-]{1,30})", text, re.I)
     put("invoice_number", m.group(1).strip() if m else None, m.group(0) if m else None)
 
     d, snip = _first(r"Invoice\s*Date[:.]?[ \t]*(\d{1,2}[-/.]\d{1,2}[-/.]\d{4})", text)
+    if d is None:
+        d, snip = _first(r"\bDate[:.]?[ \t]*(\d{1,2}[-/.]\d{1,2}[-/.]\d{4})", text)
     put("invoice_date", to_iso(d), snip)
 
     po, snip = _first(r"\b(PO[-\s]?\d{3,6})\b", text, 0)
@@ -117,7 +127,13 @@ def parse(text: str, base_conf: float) -> InvoiceExtraction:
         "; ".join(f"{t.type} {t.amount}" for t in taxes))
 
     tot, snip = _first(r"Grand\s*Total[^\d\n]*(" + NUM + ")", text)
+    if tot is None:  # "Total to be paid ... CHF 66.70", "Total amount due 1,234.00"
+        tot, snip = _first(r"^Total\b[^\n]*?(" + NUM + r")\s*$", text, re.I | re.M)
     put("total", to_number(tot), snip)
+
+    cur = re.search(r"\b(CHF|EUR|USD|GBP|JPY|SGD|AED)\b|([€$£])", text)
+    if cur and not re.search(r"\bINR\b|₹|\bRs\.?", text):
+        ext.currency = cur.group(1) or {"€": "EUR", "$": "USD", "£": "GBP"}[cur.group(2)]
 
     acct, snip = _first(r"Account\s*No\W*(\d{6,20})", text)
     put("bank_account", acct, snip)

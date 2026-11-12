@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, decisionLabel, DECISION_TONE, inr, Stage, STAMP_WORD } from "./api";
+import { api, decisionLabel, DECISION_TONE, money, Stage, STAMP_WORD } from "./api";
 import { AuditTrail, ReviewPanel } from "./Review";
 import Evidence from "./Evidence";
 import Why from "./Why";
@@ -145,7 +145,7 @@ export default function RunView({ id }: { id: number }) {
           <div><dt>Invoice</dt><dd>{fields.invoice_number ?? "—"}</dd></div>
           <div><dt>Date</dt><dd>{fields.invoice_date ?? "—"}</dd></div>
           <div><dt>Purchase order</dt><dd>{fields.po_reference ?? (outputDetail?.po ? `${outputDetail.po} (suggested)` : "—")}</dd></div>
-          <div><dt>Total</dt><dd>{fields.total != null ? inr(fields.total) : extract ? "Not on invoice" : "—"}</dd></div>
+          <div><dt>Total</dt><dd>{fields.total != null ? money(fields.total, fields.currency) : extract ? "Not on invoice" : "—"}</dd></div>
         </dl>
         <div className="actions">
           <a className="btn quiet" href="#/history">All invoices</a>

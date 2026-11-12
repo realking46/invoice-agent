@@ -1,4 +1,4 @@
-import { fieldLabel, inr, Stage } from "./api";
+import { fieldLabel, inr, money, Stage } from "./api";
 
 const MONEY = new Set(["subtotal", "tax_total", "total"]);
 
@@ -15,9 +15,9 @@ function Conf({ v }: { v: number | undefined }) {
   );
 }
 
-function fmt(k: string, v: any) {
+function fmt(k: string, v: any, cur?: string) {
   if (v === null || v === undefined || v === "") return <span className="muted">not found</span>;
-  if (MONEY.has(k)) return inr(v);
+  if (MONEY.has(k)) return money(v, cur);
   return String(v);
 }
 
@@ -55,7 +55,7 @@ function ExtractEvidence({ d }: { d: any }) {
             <tr key={k} className={flagged.has(k) ? "flag" : ""}>
               <td>{fieldLabel(k)}</td>
               <td>
-                {fmt(k, d.fields?.[k])}
+                {fmt(k, d.fields?.[k], d.fields?.currency)}
                 {d.evidence?.[k] && <div className="snippet">“{d.evidence[k]}”</div>}
               </td>
               <td><Conf v={d.confidence?.[k]} /></td>

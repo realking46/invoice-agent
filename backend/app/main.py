@@ -119,6 +119,7 @@ def _run_rows(s: Session) -> list[dict]:
                      "total": getattr(inv, "total", None) if inv and inv.total is not None else (
                          (inv.subtotal or 0) + (inv.tax or 0) if inv and inv.subtotal is not None else None),
                      "po_number": getattr(inv, "po_number", None),
+                     "currency": (extracted.get("data", {}).get("currency") or "INR").upper(),
                      "po_inferred": bool(inv and inv.po_number and not extracted.get("data", {}).get("po_reference")),
                      "processing_ms": ms.get(r.id, 0)})
     return rows
@@ -140,7 +141,7 @@ def stats():
     auto = [r for r in rows if r["system_decision"] in ("Approve", "Approve with note")]
     return {
         "invoices": len(rows),
-        "value": round(sum(r["total"] or 0 for r in rows), 2),
+        "value": round(sum(r["total"] or 0 for r in rows if r["currency"] == "INR"), 2),  # INR only: no FX
         "by_decision": by,
         "waiting_review": sum(1 for r in rows if r["decision"] == "Hold for review"),
         "reviewed": sum(1 for r in rows if r["reviewed_by"]),

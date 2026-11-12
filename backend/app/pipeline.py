@@ -98,7 +98,7 @@ def st_extract(ctx):
         "provider": res.provider,
         "fields": {k: getattr(d, k) for k in ["vendor_name", "vendor_gstin", "invoice_number", "invoice_date",
                                               "po_reference", "subtotal", "tax_total", "total", "bank_account",
-                                              "ifsc", "notes"]},
+                                              "ifsc", "notes", "currency"]},
         "line_items": [li.model_dump() for li in d.line_items],
         "tax_lines": [t.model_dump() for t in d.tax_lines],
         "confidence": d.confidence, "evidence": d.evidence, "checks": res.checks,
@@ -127,6 +127,7 @@ def _rule_stage(results, ctx, pass_summary):
 
 
 def st_validate(ctx):
+    ctx["poor_read"] = rules.poor_reading(ctx["extraction"])
     return _rule_stage(rules.validate(ctx["extraction"]), ctx, "Required fields present, numbers add up, tax valid")
 
 

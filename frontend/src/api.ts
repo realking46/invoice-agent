@@ -76,6 +76,17 @@ export const api = {
       .then((r) => json<Record<string, number>>(r)),
 };
 
+const SYMBOL: Record<string, string> = { INR: "₹", USD: "$", EUR: "€", GBP: "£" };
+
+/** Amount in the invoice's own currency: ₹1,18,400 for INR, CHF 54.90 for others. */
+export function money(x: number | null | undefined, cur?: string | null): string {
+  if (x === null || x === undefined) return "—";
+  const c = (cur || "INR").toUpperCase();
+  if (c === "INR") return inr(x);
+  const n = x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return SYMBOL[c] ? `${SYMBOL[c]}${n}` : `${c} ${n}`;
+}
+
 export function inr(x: number | null | undefined): string {
   if (x === null || x === undefined) return "—";
   return "₹" + x.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });

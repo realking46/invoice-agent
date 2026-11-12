@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, decisionLabel, DECISION_TONE, inr, timeAgo } from "./api";
+import { api, decisionLabel, DECISION_TONE, inr, money, timeAgo } from "./api";
 
 const FILTERS: { key: string; label: string; match: (r: any) => boolean }[] = [
   { key: "all", label: "All", match: () => true },
@@ -58,7 +58,7 @@ export default function Dashboard() {
       const k = r.vendor ?? "Unknown vendor";
       const v = m.get(k) ?? { vendor: k, n: 0, value: 0, ok: 0, hold: 0, rej: 0 };
       v.n += 1;
-      v.value += r.total ?? 0;
+      if ((r.currency ?? "INR") === "INR") v.value += r.total ?? 0;
       if (r.decision === "Hold for review") v.hold += 1;
       else if (r.decision === "Reject") v.rej += 1;
       else v.ok += 1;
@@ -78,7 +78,7 @@ export default function Dashboard() {
       {stats && stats.invoices > 0 && (
         <dl className="ledger">
           <div><dt>Invoices processed</dt><dd>{stats.invoices}</dd></div>
-          <div><dt>Total value</dt><dd>{inr(stats.value)}</dd></div>
+          <div><dt>Total value (INR)</dt><dd>{inr(stats.value)}</dd></div>
           <div><dt>Decided without a person</dt><dd>{stats.auto_decided_pct}%</dd></div>
           <div className={stats.waiting_review ? "attention" : ""}>
             <dt>Waiting for review</dt><dd>{stats.waiting_review}</dd>
@@ -180,7 +180,7 @@ export default function Dashboard() {
                     <td>{r.vendor ?? <span className="muted">Unknown</span>}</td>
                     <td>{r.invoice_no ?? <span className="muted">none</span>}</td>
                     <td>{r.po_number ? <>{r.po_number}{r.po_inferred && <span className="muted"> (suggested)</span>}</> : <span className="muted">none</span>}</td>
-                    <td className="num">{inr(r.total)}</td>
+                    <td className="num">{money(r.total, r.currency)}</td>
                     <td><Badge run={r} /></td>
                     <td className="why">{r.reviewed_by ? `${r.review_note} (${r.reviewed_by})` : r.reason_summary}</td>
                   </tr>

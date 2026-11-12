@@ -1,4 +1,4 @@
-import { fieldLabel, inr, Stage } from "./api";
+import { fieldLabel, inr, money, Stage } from "./api";
 
 type Fact = { label: string; value: string; flag?: boolean };
 
@@ -100,6 +100,22 @@ function factsFor(rule: any, fields: any): { caption?: string; facts: Fact[] } {
         facts: [
           { label: "Name on the invoice", value: ev.read_name ?? ev.legal_name ?? "—", flag: true },
           ...(ev.read_gstin ? [{ label: "GSTIN on the invoice", value: ev.read_gstin }] : []),
+        ],
+      };
+    case "R0":
+      return {
+        caption: "Fields missing here may well be on the invoice: check the original.",
+        facts: [
+          { label: "Key fields read", value: `${ev.found} of ${ev.of}`, flag: true },
+          { label: "Invoice total read", value: fields.total != null ? money(fields.total, fields.currency) : "no" },
+          { label: "Vendor read as", value: fields.vendor_name ?? "nothing" },
+        ],
+      };
+    case "R4b":
+      return {
+        facts: [
+          { label: "Invoice currency", value: ev.currency, flag: true },
+          { label: "This process handles", value: "INR" },
         ],
       };
     default:

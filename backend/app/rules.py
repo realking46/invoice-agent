@@ -22,7 +22,7 @@ ACCEPTED = (APPROVE, NOTE)                 # decisions that consume PO quantity
 ENTERED = (APPROVE, NOTE, HOLD)            # decisions that make an invoice "already in the system"
 PAST = {APPROVE: "approved", NOTE: "approved with a note", HOLD: "on hold", REJECT: "rejected"}
 # When several rules agree on the outcome, lead the summary with the one a buyer cares about most.
-SUMMARY_PRIORITY = ["R6", "R7", "R11", "R10", "R9", "R12", "R5", "R1", "R8", "R3", "R4", "R2"]
+SUMMARY_PRIORITY = ["R6", "R7", "R0", "R4b", "R11", "R10", "R9", "R12", "R5", "R1", "R8", "R3", "R4", "R2"]
 
 
 @dataclass
@@ -83,15 +83,43 @@ def pack(results: list[RuleResult], extra: dict | None = None) -> dict:
     return {"rules": [{**asdict(r), "status": r.status} for r in results], **(extra or {})}
 
 
-# ================================================================ VALIDATE: R1–R4
+def reading_coverage(ext_res) -> tuple[int, int]:
+    """How many of the key fields the reader found at all."""
+    from .schemas import KEY_FIELDS
+    fields = [f for f in KEY_FIELDS if f not in ("po_reference", "bank_account", "ifsc")]
+    found = sum(1 for f in fields if getattr(ext_res.data, f) not in (None, ""))
+    return found, len(fields)
+
+
+def poor_reading(ext_res) -> bool:
+    """The reader found under half of the key fields: the layout is unfamiliar (or the AI reader was unavailable).
+    Then an absent field says nothing about the invoice, only about the reader."""
+    found, total = reading_coverage(ext_res)
+    return found * 2 < total
+
+
+# ================================================================ VALIDATE: R0–R4
 def validate(ext_res) -> list[RuleResult]:
     d = ext_res.data
     out = []
+    found, total = reading_coverage(ext_res)
+    poor = found * 2 < total
+    if poor:
+        who = "the local reader (AI reader unavailable)" if ext_res.fallback_reason else (
+            "the AI reader" if ext_res.mode == "llm" else "the local reader")
+        out.append(RuleResult("R0", "Reading coverage", HOLD,
+                              f"Only {found} of {total} key fields could be read by {who}; this layout isn't one it "
+                              f"knows. A person should check the original rather than trust what is missing.",
+                              {"found": found, "of": total}))
+    else:
+        out.append(RuleResult("R0", "Reading coverage", None, f"{found} of {total} key fields read."))
     required = ["invoice_number", "invoice_date", "total"]
     missing = [f for f in required if f in ext_res.missing_fields]
     if not (d.vendor_name or d.vendor_gstin):
         missing.append("vendor")
     unreadable = [f for f in required if f in ext_res.unreadable_fields]
+    if poor:  # not found by a reader that found almost nothing: unreadable, not missing
+        unreadable, missing = sorted(set(unreadable) | set(missing), key=(required + ["vendor"]).index), []
     def pretty(fs):
         names = [f.replace("_", " ") for f in fs]
         return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
@@ -101,7 +129,8 @@ def validate(ext_res) -> list[RuleResult]:
                               {"missing": missing}))
     elif unreadable:
         out.append(RuleResult("R1", "Required fields present", HOLD,
-                              f"Could not read {pretty(unreadable)} on the scan; a person should check the original.",
+                              f"Could not read {pretty(unreadable)}" + ("" if poor else " on the scan") +
+                              "; a person should check the original.",
                               {"unreadable": unreadable}))
     else:
         out.append(RuleResult("R1", "Required fields present", None, "Invoice number, date, vendor and total found."))
@@ -130,6 +159,11 @@ def validate(ext_res) -> list[RuleResult]:
         out.append(RuleResult("R3", "Arithmetic", None, "Not enough figures to cross-check.", skipped=True))
 
     out.append(tax_sanity(d))
+    cur = (d.currency or "INR").upper()
+    if cur != "INR":
+        out.append(RuleResult("R4b", "Currency", HOLD,
+                              f"Invoice is in {cur}; this process handles INR invoices only. A person should check the "
+                              f"vendor and the conversion before paying.", {"currency": cur}))
     return out
 
 
@@ -183,10 +217,11 @@ def vendor_checks(d, ctx) -> list[RuleResult]:
     out = []
     if not v:
         who = d.vendor_name or d.vendor_gstin or "unknown"
-        unsure = d.confidence.get("vendor_name", 0) < config.SETTINGS["confidence_floor"]
+        unsure = d.confidence.get("vendor_name", 0) < config.SETTINGS["confidence_floor"] or ctx.get("poor_read")
         out.append(RuleResult("R5", "Approved vendor", HOLD if unsure else REJECT,
                               f"Vendor '{who}' is not in the vendor master" +
-                              (" (name read with low confidence; check manually)." if unsure else
+                              (" (the invoice was only partly read; check manually)." if ctx.get("poor_read") else
+                               " (name read with low confidence; check manually)." if unsure else
                                "; onboard them before paying."), {"read_name": d.vendor_name, "read_gstin": d.vendor_gstin}))
         out.append(RuleResult("R6", "Bank details", None, "Skipped: no vendor on file.", skipped=True))
         return out

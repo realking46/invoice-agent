@@ -118,7 +118,7 @@ def extract(path, progress=lambda m: None) -> ExtractionResult:
                     f"({_AI_DOWN['reason'][:120]})")
         progress("The AI reader was busy a moment ago; reading locally instead of waiting again")
         mode = "local"
-    else:
+    elif mode == "llm":
         try:
             ext, meta, text = read_document(path, info["route"], info["text"], mode, progress)
             if cache_file:

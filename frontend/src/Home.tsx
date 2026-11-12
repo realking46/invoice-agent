@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, inr, Sample } from "./api";
+import { api, money, Sample } from "./api";
 import { Badge } from "./Dashboard";
 
 export default function Home() {
@@ -61,7 +61,7 @@ export default function Home() {
             {queue.map((r) => (
               <a className="queue-row" key={r.id} href={`#/runs/${r.id}`}>
                 <span className="qv">{r.vendor ?? "Unknown vendor"}</span>
-                <span className="qa">{inr(r.total)}</span>
+                <span className="qa">{money(r.total, r.currency)}</span>
                 <span className="qr">{r.reason_summary}</span>
                 <span className="qgo">Review</span>
               </a>
