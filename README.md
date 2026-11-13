@@ -34,7 +34,13 @@ PDF ─► Receive ─► Check type ─► Read ─► Validate ─► Vendor &
 The live link is in the submission email. The site has four parts: **Home** (what it does, the hard cases, one-click
 sample runs), **Try it** (upload a PDF or pick a sample, plus the review queue), the **live run view** (each stage as it
 runs, with the invoice and the fields that drove the decision highlighted) and **History** (totals, decisions, filters,
-audit trail). **Rule settings** changes tolerances live.
+audit trail, payments coming up, CSV export). **Vendors & POs** lets you add a vendor and a purchase order, so
+your own invoice can be matched. **Rule settings** changes tolerances live and shows what reviewers' decisions
+suggest changing.
+
+Also built in: upload several PDFs at once (they queue and run in order); partial approval of an over-billed
+invoice ("pay for the 40 still open, query 15"); due dates from each vendor's payment terms; time saved at an
+assumed 8 minutes per invoice checked by hand; each decision downloadable as JSON.
 
 Locally:
 
@@ -77,7 +83,7 @@ stops at the decision; it never pays. Vendors and POs are seeded from `data/seed
 ## Tests
 
 ```bash
-cd backend && pytest -q                       # 8 samples in demo order, review, highlights, foreign invoice, provider fallback (31)
+cd backend && pytest -q                       # samples in demo order, review, partial approval, exports, master data, insights, providers (35)
 python scripts/extract_all.py                 # extraction accuracy vs data/ground_truth.json
 python scripts/generate_test_data.py          # rebuild every sample PDF, seed CSV and expected result
 ```
@@ -86,7 +92,7 @@ Local reader: 70/72 fields (97 %) correct across the samples. Both misses are on
 
 ## Limitations and next steps
 
-- 3-way match with goods receipt notes; partial approval of a line ("approve 40 of 55")
+- 3-way match with goods receipt notes
 - Email intake (forward-to address) and a vendor portal for missing details
 - Postgres, a worker queue and per-PO locks for volume; batch API calls
 - Learn tolerances and confidence floors from reviewer overrides

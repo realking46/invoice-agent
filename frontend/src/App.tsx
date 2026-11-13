@@ -6,6 +6,7 @@ import Settings from "./Settings";
 import RunView from "./RunView";
 import Landing, { goSection } from "./Landing";
 import Footer from "./Footer";
+import Master from "./Master";
 import { SITE } from "./site";
 
 function useHash() {
@@ -32,7 +33,7 @@ export default function App() {
   useEffect(() => setOpen(false), [hash]);
 
   const runMatch = hash.match(/^#\/runs\/(\d+)/);
-  const isLanding = !runMatch && !["#/run", "#/history", "#/settings"].includes(hash);
+  const isLanding = !runMatch && !["#/run", "#/history", "#/settings", "#/master"].includes(hash);
   const cur = (on: boolean) => (on ? "page" : undefined);
 
   return (
@@ -57,6 +58,7 @@ export default function App() {
           <a href="#/" aria-current={cur(isLanding)}>Home</a>
           <a href="#/run" aria-current={cur(hash === "#/run")}>Try it</a>
           <a href="#/history" aria-current={cur(hash === "#/history" || !!runMatch)}>History</a>
+          <a href="#/master" aria-current={cur(hash === "#/master")}>Vendors &amp; POs</a>
           <a href="#/settings" aria-current={cur(hash === "#/settings")}>Rule settings</a>
           <a href="#contact" onClick={(e) => { e.preventDefault(); setOpen(false); goSection("contact"); }}>Contact</a>
         </nav>
@@ -69,7 +71,7 @@ export default function App() {
       </header>
       <main className={isLanding ? "is-landing" : ""}>
         {runMatch ? <RunView id={Number(runMatch[1])} /> : hash === "#/history" ? <Dashboard />
-          : hash === "#/settings" ? <Settings /> : hash === "#/run" ? <Home /> : <Landing />}
+          : hash === "#/settings" ? <Settings /> : hash === "#/master" ? <Master /> : hash === "#/run" ? <Home /> : <Landing />}
       </main>
       <Footer />
     </>

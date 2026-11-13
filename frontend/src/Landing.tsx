@@ -67,14 +67,28 @@ export default function Landing() {
     api.runAll().then(() => (window.location.hash = "#/history"))
       .catch((e) => setError(e.message)).finally(() => setBusy(null));
   };
-  // Cases 4 and 5 only make sense after the earlier invoices, so every case starts a full ordered run
-  // and opens the run for that invoice.
-  const runOne = (file: string) => {
+  // Runs only the invoice you clicked. Cases 4 and 5 need one earlier invoice to have been seen
+  // (the first partial delivery, the original invoice); that one is run first only if it isn't there yet.
+  const NEEDS: Record<string, string> = {
+    "04_split_po_part2_over.pdf": "03_split_po_part1.pdf",
+    "05_duplicate_renumbered.pdf": "01_happy_clean.pdf",
+  };
+  const runOne = async (file: string) => {
     setBusy(file);
     setError(null);
-    const idx = parseInt(file, 10) - 1;
-    api.runAll().then((r) => (window.location.hash = `#/runs/${r.run_ids[idx] ?? r.run_ids[0]}`))
-      .catch((e) => setError(e.message)).finally(() => setBusy(null));
+    try {
+      const pre = NEEDS[file];
+      if (pre) {
+        const runs = await api.runs();
+        if (!runs.some((r: any) => r.file_name === pre && r.status !== "error")) await api.runSample(pre);
+      }
+      const r = await api.runSample(file);
+      window.location.hash = `#/runs/${r.run_id}`;
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -151,8 +165,8 @@ export default function Landing() {
           ))}
         </div>
         <p className="band-foot">
-          Cases 4 and 5 depend on invoices that came before them, as in real life, so each one runs all eight samples
-          in order and opens the one you picked.
+          Cases 4 and 5 depend on an invoice that came before them, as in real life. If that one hasn’t been run yet,
+          it runs first.
         </p>
       </section>
 

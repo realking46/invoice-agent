@@ -41,6 +41,7 @@ export default function RunView({ id }: { id: number }) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [audit, setAudit] = useState<any[]>([]);
+  const [due, setDue] = useState<any>(null);
   const [boxes, setBoxes] = useState<{ x: number; y: number; w: number; h: number; label: string }[]>([]);
   const [tech, setTech] = useState(() => {
     try { return localStorage.getItem("tech") === "1"; } catch { return false; }
@@ -69,6 +70,7 @@ export default function RunView({ id }: { id: number }) {
         if (cancelled) return;
         setRun(r.run);
         setAudit(r.audit ?? []);
+        setDue(r.due ?? null);
         const byKey: Record<string, any> = Object.fromEntries(r.steps.map((s: any) => [s.stage, s]));
         setStages(STAGES.map((s) => {
           const st = byKey[s.key];
@@ -146,8 +148,11 @@ export default function RunView({ id }: { id: number }) {
           <div><dt>Date</dt><dd>{fields.invoice_date ?? "—"}</dd></div>
           <div><dt>Purchase order</dt><dd>{fields.po_reference ?? (outputDetail?.po ? `${outputDetail.po} (suggested)` : "—")}</dd></div>
           <div><dt>Total</dt><dd>{fields.total != null ? money(fields.total, fields.currency) : extract ? "Not on invoice" : "—"}</dd></div>
+          {due?.due_date && <div><dt>Due</dt><dd title={`${due.terms_days}-day terms from the vendor master`}>
+            {new Date(due.due_date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</dd></div>}
         </dl>
         <div className="actions">
+          {decision && <a className="btn quiet" href={`/api/runs/${id}/decision.json`} download>Download JSON</a>}
           <a className="btn quiet" href="#/history">All invoices</a>
           <a className="btn" href="#/run">Run another invoice</a>
         </div>
@@ -212,6 +217,9 @@ export default function RunView({ id }: { id: number }) {
               {reviewed ? (
                 <>
                   <p className="why">{run.review_note}</p>
+                  {run.approved_amount != null && (
+                    <p className="why"><b>Pay now {money(run.approved_amount)}</b>; the rest is queried with the vendor.</p>
+                  )}
                   <p className="overridden">The rules held it: {decision.summary}</p>
                 </>
               ) : (

@@ -35,7 +35,8 @@ async function json<T>(r: Response): Promise<T> {
   if (!r.ok) {
     let msg = `${r.status} ${r.statusText}`;
     try {
-      msg = (await r.json()).detail ?? msg;
+      const d = (await r.json()).detail;
+      msg = Array.isArray(d) ? d.map((x: any) => x.msg).join("; ") : d ?? msg;
     } catch {}
     throw new Error(msg);
   }
@@ -70,6 +71,19 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action, note, reviewer }),
     }).then((r) => json<any>(r)),
+  partial: (id: number) => fetch(`/api/runs/${id}/partial`).then((r) => json<any>(r)),
+  approvePartial: (id: number, note: string, reviewer: string) =>
+    fetch(`/api/runs/${id}/approve_partial`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ note, reviewer }),
+    }).then((r) => json<any>(r)),
+  master: () => fetch("/api/master/full").then((r) => json<any>(r)),
+  addVendor: (v: any) =>
+    fetch("/api/vendors", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(v) })
+      .then((r) => json<any>(r)),
+  addPO: (p: any) =>
+    fetch("/api/purchase_orders", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(p) })
+      .then((r) => json<any>(r)),
+  insights: () => fetch("/api/insights").then((r) => json<any>(r)),
   getConfig: () => fetch("/api/config").then((r) => json<Record<string, number>>(r)),
   putConfig: (c: Record<string, number>) =>
     fetch("/api/config", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(c) })
@@ -110,10 +124,11 @@ export function fieldLabel(k: string): string {
   return map[k] ?? k.replace(/_/g, " ");
 }
 
-export function decisionLabel(run: { decision?: string | null; reviewed_by?: string | null; status?: string }): string {
+export function decisionLabel(run: { decision?: string | null; reviewed_by?: string | null; status?: string; approved_amount?: number | null }): string {
   if (run.status === "error") return "Failed";
   if (!run.decision) return run.status === "done" ? "—" : "Processing";
-  if (run.reviewed_by) return run.decision === "Approve" ? "Approved by reviewer" : "Rejected by reviewer";
+  if (run.reviewed_by) return run.decision === "Approve" ? "Approved by reviewer"
+    : run.decision === "Approve with note" ? "Partly approved by reviewer" : "Rejected by reviewer";
   return { Approve: "Approved", "Approve with note": "Approved with note", "Hold for review": "Waiting for review",
     Reject: "Rejected" }[run.decision] ?? run.decision;
 }

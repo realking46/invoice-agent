@@ -66,5 +66,6 @@ SETTINGS = {
     "confidence_floor": 0.80,        # A9: below this on a key field => Hold
     "duplicate_amount_pct": 1.0,     # A8: probable duplicate if amount within 1 % ...
     "duplicate_window_days": 7,      # ... and date within 7 days
+    "manual_minutes_per_invoice": 8,  # time an AP clerk spends checking one invoice by hand (for "time saved")
     "demo_pacing_ms": 450,           # minimum visible time per stage in the live view (0 = run at full speed)
 }

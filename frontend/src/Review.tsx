@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { api, timeAgo } from "./api";
+import { useEffect, useState } from "react";
+import { api, money, timeAgo } from "./api";
 
 const ACTION_WORD: Record<string, string> = {
   received: "Received", decided: "Decided by rules", approved: "Approved", rejected: "Rejected",
@@ -12,8 +12,10 @@ export function ReviewPanel({ runId, onDone }: { runId: number; onDone: (r: any)
   });
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [partial, setPartial] = useState<any>(null);
+  useEffect(() => { api.partial(runId).then(setPartial).catch(() => {}); }, [runId]);
 
-  const act = (action: "approve" | "reject") => {
+  const act = (action: "approve" | "reject" | "partial") => {
     if (!note.trim()) {
       setError("Add a short note saying what you checked.");
       return;
@@ -21,7 +23,8 @@ export function ReviewPanel({ runId, onDone }: { runId: number; onDone: (r: any)
     setBusy(action);
     setError(null);
     try { localStorage.setItem("reviewer", name); } catch {}
-    api.review(runId, action, note, name.trim() || "AP reviewer")
+    const who = name.trim() || "AP reviewer";
+    (action === "partial" ? api.approvePartial(runId, note, who) : api.review(runId, action, note, who))
       .then(onDone).catch((e) => setError(e.message)).finally(() => setBusy(null));
   };
 
@@ -41,6 +44,22 @@ export function ReviewPanel({ runId, onDone }: { runId: number; onDone: (r: any)
           {busy === "reject" ? "Rejecting…" : "Reject invoice"}
         </button>
       </div>
+      {partial?.available && (
+        <div className="partial">
+          <p>
+            <b>Or approve only what's left on the order.</b>{" "}
+            {partial.lines.filter((l: any) => l.approvable < l.qty).map((l: any) =>
+              `${l.approvable} of ${l.qty} ${l.po_desc}`).join("; ")}.
+          </p>
+          <div className="partial-split">
+            <span>Pay now <b>{money(partial.approve_amount)}</b></span>
+            <span>Query with vendor <b>{money(partial.query_amount)}</b></span>
+          </div>
+          <button className="btn" disabled={!!busy} onClick={() => act("partial")}>
+            {busy === "partial" ? "Approving…" : `Approve ${money(partial.approve_amount)} only`}
+          </button>
+        </div>
+      )}
       {error && <p className="field-error">{error}</p>}
     </div>
   );

@@ -71,6 +71,7 @@ class Run(SQLModel, table=True):
     reviewed_by: Optional[str] = None
     reviewed_at: Optional[datetime] = None
     review_note: Optional[str] = None
+    approved_amount: Optional[float] = None   # set when a reviewer approves only part of the invoice
 
 
 class RunStep(SQLModel, table=True):
@@ -141,7 +142,19 @@ def reset_and_seed():
         s.commit()
 
 
+def _schema_current() -> bool:
+    """An older database file lacks newer columns; it is rebuilt from the seed data (demo data only)."""
+    from sqlalchemy import inspect
+    insp = inspect(engine)
+    if not insp.has_table("run"):
+        return True
+    cols = {c["name"] for c in insp.get_columns("run")}
+    return {"approved_amount"} <= cols
+
+
 def ensure_seeded():
+    if not _schema_current():
+        SQLModel.metadata.drop_all(engine)
     init_db()
     with Session(engine) as s:
         if not s.exec(select(Vendor)).first():

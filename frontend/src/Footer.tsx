@@ -15,6 +15,7 @@ export default function Footer() {
           <h3>Product</h3>
           <a href="#/run">Try it</a>
           <a href="#/history">History</a>
+          <a href="#/master">Vendors and POs</a>
           <a href="#/settings">Rule settings</a>
         </nav>
         <nav aria-label="Learn">

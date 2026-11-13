@@ -12,6 +12,8 @@ const FIELDS: { key: string; label: string; help: string; unit: string; step: nu
     help: "Invoices from one vendor this close in amount are treated as possible duplicates..." },
   { key: "duplicate_window_days", label: "Duplicate date window", unit: "days", step: 1,
     help: "...when they are also this many days apart or fewer." },
+  { key: "manual_minutes_per_invoice", label: "Minutes to check one invoice by hand", unit: "min", step: 1,
+    help: "Used for \"Time saved\" on the History page." },
   { key: "demo_pacing_ms", label: "Demo pacing", unit: "ms", step: 50,
     help: "Minimum time each check stays on screen in the live view. Set to 0 to run at full speed." },
 ];
@@ -21,6 +23,9 @@ export default function Settings() {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ins, setIns] = useState<any>(null);
+  const loadIns = () => api.insights().then(setIns).catch(() => {});
+  useEffect(() => { loadIns(); }, []);
 
   useEffect(() => {
     api.getConfig().then((c) => {
@@ -41,6 +46,7 @@ export default function Settings() {
     }
     api.putConfig(out).then((c) => {
       setCfg(c);
+      loadIns();
       setError(null);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -76,6 +82,50 @@ export default function Settings() {
           {saved && <span className="muted">Settings saved</span>}
         </div>
       </form>
+
+      <section className="insights-rev" aria-labelledby="ih">
+        <h2 id="ih">What reviewers' decisions suggest</h2>
+        <p className="lede">
+          Every held invoice a person approves or rejects is a signal. If people keep approving invoices held for the
+          same reason, that limit may be too strict.
+        </p>
+        {!ins || ins.rules.length === 0 ? (
+          <p className="muted">No invoices have been held yet. Run the samples, then approve or reject the held ones.</p>
+        ) : (
+          <>
+            <table className="vendors">
+              <thead>
+                <tr><th>Held because of</th><th className="num">Held</th><th className="num">Approved by a person</th>
+                  <th className="num">Rejected by a person</th><th className="num">Still waiting</th></tr>
+              </thead>
+              <tbody>
+                {ins.rules.map((r: any) => (
+                  <tr key={r.rule}>
+                    <td>{r.name}</td><td className="num">{r.held}</td><td className="num">{r.approved}</td>
+                    <td className="num">{r.rejected}</td><td className="num">{r.waiting}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {ins.rules.filter((r: any) => r.suggestion || r.note).map((r: any) => (
+              <div key={r.rule} className={`suggest ${r.suggestion ? "" : "caution"}`}>
+                <b>{r.name}.</b> {r.suggestion ? r.suggestion.text : r.note}
+                {r.suggestion && (
+                  <button className="btn" onClick={() => setDraft({ ...draft, [r.suggestion.setting]: String(r.suggestion.to) })}>
+                    Use {r.suggestion.to}
+                  </button>
+                )}
+              </div>
+            ))}
+            {!ins.rules.some((r: any) => r.suggestion) && (
+              <p className="muted">
+                No change suggested yet: a suggestion appears once reviewers have decided at least two invoices held for
+                the same adjustable reason, and approved most of them.
+              </p>
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }

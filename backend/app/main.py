@@ -107,7 +107,8 @@ def run_sample(name: str, background: BackgroundTasks):
 def _run_rows(s: Session) -> list[dict]:
     runs = s.exec(select(Run).order_by(Run.id.desc())).all()
     invs = {i.run_id: i for i in s.exec(select(InvoiceRecord)).all()}
-    vendors = {v.vendor_id: v.legal_name for v in s.exec(select(Vendor)).all()}
+    vmap = {v.vendor_id: v for v in s.exec(select(Vendor)).all()}
+    vendors = {k: v.legal_name for k, v in vmap.items()}
     ms = dict(s.exec(select(RunStep.run_id, func.sum(RunStep.duration_ms)).group_by(RunStep.run_id)).all())
     rows = []
     for r in runs:
@@ -121,8 +122,22 @@ def _run_rows(s: Session) -> list[dict]:
                      "po_number": getattr(inv, "po_number", None),
                      "currency": (extracted.get("data", {}).get("currency") or "INR").upper(),
                      "po_inferred": bool(inv and inv.po_number and not extracted.get("data", {}).get("po_reference")),
-                     "processing_ms": ms.get(r.id, 0)})
+                     "processing_ms": ms.get(r.id, 0),
+                     **_due(inv, vmap.get(getattr(inv, "vendor_id", None)))})
     return rows
+
+
+def _due(inv, vendor) -> dict:
+    """Due date = invoice date + the vendor's payment terms from the master."""
+    from datetime import date, timedelta
+    if not inv or not inv.invoice_date or not vendor:
+        return {"due_date": None, "terms_days": getattr(vendor, "payment_terms_days", None)}
+    try:
+        d = date.fromisoformat(inv.invoice_date[:10])
+    except ValueError:
+        return {"due_date": None, "terms_days": vendor.payment_terms_days}
+    return {"due_date": (d + timedelta(days=vendor.payment_terms_days)).isoformat(),
+            "terms_days": vendor.payment_terms_days}
 
 
 @app.get("/api/runs")
@@ -160,6 +175,9 @@ def stats():
         if rows else 0,
         "auto_approved": len(auto),
         "avg_processing_ms": round(sum(r["processing_ms"] for r in rows) / len(rows)) if rows else 0,
+        "minutes_saved": round(sum(1 for r in rows if r["system_decision"] != "Hold for review")
+                               * config.SETTINGS["manual_minutes_per_invoice"]),
+        "partly_approved": sum(1 for r in rows if r.get("approved_amount") is not None),
     }
 
 
@@ -204,7 +222,9 @@ def get_run(run_id: int):
         steps = s.exec(select(RunStep).where(RunStep.run_id == run_id).order_by(RunStep.order)).all()
         inv = s.exec(select(InvoiceRecord).where(InvoiceRecord.run_id == run_id)).first()
         trail = s.exec(select(AuditEvent).where(AuditEvent.run_id == run_id).order_by(AuditEvent.id)).all()
+        vendor = s.get(Vendor, inv.vendor_id) if inv and inv.vendor_id else None
         return {"run": run.model_dump(exclude={"file_path"}), "audit": [a.model_dump() for a in trail],
+                "due": _due(inv, vendor),
                 "steps": [{**st.model_dump(exclude={"detail_json"}), "detail": json.loads(st.detail_json)}
                           for st in steps],
                 "invoice": inv.model_dump(exclude={"extracted_json"}) if inv else None}
@@ -377,7 +397,11 @@ def highlights(run_id: int):
                 add(find(_indian(data["total"])), "Figures don't add up", rid)
     return {"page": 1, "boxes": boxes}
 
-# Serve the built frontend (frontend/dist) at / when it exists
+from .extras import router as _extras  # noqa: E402  (needs the helpers above)
+app.include_router(_extras)
+
+# Serve the built frontend (frontend/dist) at / when it exists (after every API route)
 _dist = config.REPO_DIR / "frontend" / "dist"
 if _dist.exists():
     app.mount("/", StaticFiles(directory=_dist, html=True), name="ui")
+

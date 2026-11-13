@@ -14,6 +14,23 @@ export function Badge({ run }: { run: any }) {
   return <span className={`badge ${tone}`}>{decisionLabel(run)}</span>;
 }
 
+function duration(min: number): string {
+  if (!min) return "0 min";
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? `${h} h${m ? ` ${m} min` : ""}` : `${m} min`;
+}
+
+const DAY = 86400000;
+function dueInfo(due: string | null): { days: number; label: string; tone: string } | null {
+  if (!due) return null;
+  const today = new Date(new Date().toDateString()).getTime();
+  const days = Math.round((new Date(due + "T00:00:00").getTime() - today) / DAY);
+  if (days < 0) return { days, label: `Overdue by ${-days} day${days === -1 ? "" : "s"}`, tone: "reject" };
+  if (days === 0) return { days, label: "Due today", tone: "hold" };
+  if (days <= 7) return { days, label: `Due in ${days} day${days === 1 ? "" : "s"}`, tone: "hold" };
+  return { days, label: `Due in ${days} days`, tone: "" };
+}
+
 export default function Dashboard() {
   const [runs, setRuns] = useState<any[] | null>(null);
   const [stats, setStats] = useState<any>(null);
@@ -21,6 +38,8 @@ export default function Dashboard() {
   const [vendor, setVendor] = useState("");
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [cfgMinutes, setCfgMinutes] = useState(8);
+  useEffect(() => { api.getConfig().then((c) => setCfgMinutes(c.manual_minutes_per_invoice ?? 8)).catch(() => {}); }, []);
 
   useEffect(() => {
     let timer: number | undefined;
@@ -69,13 +88,23 @@ export default function Dashboard() {
     return Array.from(m.values()).sort((a, b) => b.value - a.value);
   }, [runs]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const payable = useMemo(() => (runs ?? [])
+    .filter((r) => r.status === "done" && r.due_date && (r.decision === "Approve" || r.decision === "Approve with note"))
+    .map((r) => ({ r, d: dueInfo(r.due_date) }))
+    .sort((a, b) => a.r.due_date.localeCompare(b.r.due_date)), [runs]);
+
   if (error) return <div className="error-banner">{error}</div>;
   if (!runs) return <p className="muted">Loading history…</p>;
 
   return (
     <>
-      <h1>Invoice history</h1>
-      <p className="lede">Every invoice the process has handled, what it decided, and why.</p>
+      <div className="pagehead">
+        <div>
+          <h1>Invoice history</h1>
+          <p className="lede">Every invoice the process has handled, what it decided, and why.</p>
+        </div>
+        {runs.length > 0 && <a className="btn" href="/api/runs.csv" download>Download CSV</a>}
+      </div>
 
       {stats && stats.invoices > 0 && (
         <dl className="ledger">
@@ -98,7 +127,12 @@ export default function Dashboard() {
               <button className="linkbtn small" onClick={() => setFilter("review")}>Show them</button>
             )}
           </div>
-          <div><dt>Average processing time</dt><dd>{(stats.avg_processing_ms / 1000).toFixed(2)} s</dd></div>
+          <div>
+            <dt>Time saved</dt><dd>{duration(stats.minutes_saved)}</dd>
+            <p className="other-cur" title="Change the minutes per invoice in Rule settings">
+              {stats.minutes_saved ? `at ${cfgMinutes} min per invoice checked by hand` : "Nothing decided automatically yet"}
+            </p>
+          </div>
         </dl>
       )}
 
@@ -151,6 +185,33 @@ export default function Dashboard() {
         </div>
       )}
 
+      {payable.length > 0 && (
+        <section className="panel payments" aria-label="Payments coming up">
+          <div className="panel-head">
+            <h2>Payments coming up</h2>
+            <span className="muted">Approved invoices, due date from each vendor's payment terms</span>
+          </div>
+          <table className="vendors">
+            <thead>
+              <tr><th>Due</th><th>Vendor</th><th>Invoice</th><th className="num">To pay</th><th></th></tr>
+            </thead>
+            <tbody>
+              {payable.slice(0, 6).map(({ r, d }) => (
+                <tr key={r.id}>
+                  <td>{new Date(r.due_date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</td>
+                  <td>{r.vendor}</td>
+                  <td><a href={`#/runs/${r.id}`}>{r.invoice_no ?? `Run #${r.id}`}</a></td>
+                  <td className="num">{money(r.approved_amount ?? r.total, r.currency)}</td>
+                  <td>{d && <span className={`due ${d.tone}`}>{d.label}</span>}
+                    {r.terms_days != null && <span className="muted"> · {r.terms_days}-day terms</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {payable.length > 6 && <p className="muted" style={{ margin: "8px 0 0" }}>+ {payable.length - 6} more in the CSV</p>}
+        </section>
+      )}
+
       {runs.length === 0 ? (
         <div className="empty">
           <p>No invoices yet. Run one to see it here.</p>
@@ -199,7 +260,8 @@ export default function Dashboard() {
                     <td className="vendor-cell">{r.vendor ?? <span className="muted">Unknown</span>}</td>
                     <td>{r.invoice_no ?? <span className="muted">none</span>}</td>
                     <td>{r.po_number ? <>{r.po_number}{r.po_inferred && <span className="muted"> (suggested)</span>}</> : <span className="muted">none</span>}</td>
-                    <td className="num amt">{money(r.total, r.currency)}</td>
+                    <td className="num amt">{money(r.total, r.currency)}
+                      {r.approved_amount != null && <div className="part">{money(r.approved_amount, r.currency)} approved</div>}</td>
                     <td><Badge run={r} /></td>
                     <td className="why">{r.reviewed_by ? `${r.review_note} (${r.reviewed_by})` : r.reason_summary}</td>
                   </tr>
