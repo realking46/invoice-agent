@@ -29,6 +29,14 @@ PDF ─► Receive ─► Check type ─► Read ─► Validate ─► Vendor &
 | No invoice number or total | Reject | Drafts the request to the vendor |
 | Foreign or hard-to-read invoice (non-INR, under half the key fields read) | Hold | Unfamiliar input goes to a person instead of being rejected |
 
+## Images
+![Alt text](images/home.png)
+![Alt text](images/test.png)
+![Alt text](images/history.png)
+![Alt text](images/rules.png)
+![Alt text](images/invoice-agent-flowchart.png)
+
+
 ## Try it
 
 The live link is in the submission email. The site has four parts: **Home** (what it does, the hard cases, one-click
