@@ -9,6 +9,12 @@ review or Reject**, with the reason, the evidence behind every check, and the ne
 **Design principle: the LLM reads, the rules decide.** The whole stack runs on free tiers (Gemini, Render). Reading messy documents is where a model beats templates.
 Deciding whether to pay is where finance teams need rules they can read, test and change.
 
+![Home: what the agent does, the hard cases and one-click sample runs](images/home.png)
+
+> Screenshots use the **fictional demo data** in `data/seed/` (buyer Kestrel Components Pvt Ltd), not real invoices.
+
+---
+
 ## What it does
 
 ```
@@ -17,6 +23,10 @@ PDF ─► Receive ─► Check type ─► Read ─► Validate ─► Vendor &
                                 or OCR   arithmetic,  bank vs master   number,        cumulative    severe    vendor email,
                                          GST                           amount + date  qty, total    wins      audit trail
 ```
+
+<p align="center">
+  <img src="images/invoice-agent-flowchart.png" alt="Invoice agent flowchart" width="90%">
+</p>
 
 | Scenario (sample) | Decision | Why it matters |
 |---|---|---|
@@ -29,13 +39,17 @@ PDF ─► Receive ─► Check type ─► Read ─► Validate ─► Vendor &
 | No invoice number or total | Reject | Drafts the request to the vendor |
 | Foreign or hard-to-read invoice (non-INR, under half the key fields read) | Hold | Unfamiliar input goes to a person instead of being rejected |
 
-## Images
-![Alt text](images/home.png)
-![Alt text](images/test.png)
-![Alt text](images/history.png)
-![Alt text](images/rules.png)
-![Alt text](images/invoice-agent-flowchart.png)
+### Screens
 
+| Try it: upload a PDF or pick a sample | History: decisions, filters and audit trail |
+|---|---|
+| ![Try it](images/test.png) | ![History](images/history.png) |
+
+| Rule settings: tolerances changed live |  |
+|---|---|
+| ![Rule settings](images/rules.png) |  |
+
+---
 
 ## Try it
 
@@ -62,6 +76,8 @@ cd ../backend && uvicorn app.main:app          # http://127.0.0.1:8000
 Run the samples **top to bottom after "Reset demo data"**: some depend on earlier ones, just as in real life.
 Full setup: [docs/SETUP.md](docs/SETUP.md). Deploy steps: [docs/DEPLOY.md](docs/DEPLOY.md); the demo script is in [docs/DEMO.md](docs/DEMO.md).
 
+---
+
 ## How it's built
 
 | Part | Choice | Why |
@@ -82,11 +98,15 @@ Notable decisions:
 - **One invoice at a time.** Later invoices must see earlier decisions (split POs, duplicates). At scale this becomes a lock per PO.
 - **People stay in charge.** Held invoices need a reviewer's note to approve or reject. The rules' original decision is kept, and every step is in the audit trail.
 
+---
+
 ## Assumptions
 
 Fictional buyer Kestrel Components Pvt Ltd (Pune, Maharashtra), about 300 invoices a month. INR and GST: CGST + SGST for
 in-state vendors, IGST for out-of-state. 2-way match (invoice vs PO); goods receipts are out of scope. The process
 stops at the decision; it never pays. Vendors and POs are seeded from `data/seed/`.
+
+---
 
 ## Tests
 
@@ -98,6 +118,8 @@ python scripts/generate_test_data.py          # rebuild every sample PDF, seed C
 
 Local reader: 70/72 fields (97 %) correct across the samples. Both misses are on the scan, and both are flagged as low confidence.
 
+---
+
 ## Limitations and next steps
 
 - 3-way match with goods receipt notes
@@ -105,6 +127,8 @@ Local reader: 70/72 fields (97 %) correct across the samples. Both misses are on
 - Postgres, a worker queue and per-PO locks for volume; batch API calls
 - Learn tolerances and confidence floors from reviewer overrides
 - Multi-currency and non-GST tax regimes (today a non-INR invoice is held for a person)
+
+---
 
 ## Repo
 
